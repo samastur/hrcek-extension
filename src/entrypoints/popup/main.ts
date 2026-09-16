@@ -1,12 +1,17 @@
 import { browser } from 'wxt/browser';
 import { HrcekApiError, HrcekNetworkError } from '../../lib/api/errors';
+import { HrcekClient } from '../../lib/api/client';
 import { clientFromSettings } from '../../lib/client-factory';
 import { loadExisting, submitSave } from '../../lib/save';
 import { loadSettings } from '../../lib/settings';
 import { emptyForm, entryToForm, formToSaveRequest, type FormState } from './form';
+import type { Settings } from '../../lib/settings';
 import './style.css';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
+
+let settings: Settings | null = null;
+let client: HrcekClient | null = null;
 
 /** e2e seam: ?url=&title= override the active-tab lookup. */
 async function getPageInfo(): Promise<{ url: string; title: string }> {
@@ -103,8 +108,10 @@ function collectForm(): FormState {
 }
 
 async function save(): Promise<void> {
-  const settings = (await loadSettings())!;
-  const client = clientFromSettings(settings);
+  if (!settings || !client) {
+    setStatus('error', 'Settings not available.');
+    return;
+  }
   setStatus('info', 'Saving…');
   try {
     const outcome = await submitSave(client, formToSaveRequest(collectForm()));
@@ -115,13 +122,13 @@ async function save(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const settings = await loadSettings();
+  settings = await loadSettings();
   if (settings === null) {
     renderUnconfigured();
     return;
   }
+  client = clientFromSettings(settings);
   const { url, title } = await getPageInfo();
-  const client = clientFromSettings(settings);
   try {
     const existing = url.length > 0 ? await loadExisting(client, url) : null;
     if (existing !== null) {
