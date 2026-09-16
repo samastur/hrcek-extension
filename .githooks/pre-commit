@@ -1,0 +1,16 @@
+#!/bin/sh
+# Refuse the commit unless the fast gates pass. The slow end-to-end suite
+# (`pnpm test:e2e`) runs in CI, not here.
+#
+# Installed by `pnpm install` (the prepare script points core.hooksPath at
+# .githooks). Bypass deliberately with `git commit --no-verify`.
+set -eu
+
+echo "pre-commit: typecheck"
+pnpm typecheck
+
+echo "pre-commit: lint"
+pnpm lint
+
+echo "pre-commit: tests"
+pnpm test
