@@ -5,5 +5,5 @@ set -eu
 SRC="${1:-../hrcek/docs/api/openapi.json}"
 mkdir -p docs/api
 cp "$SRC" docs/api/openapi.json
-pnpm exec openapi-typescript docs/api/openapi.json -o src/lib/api/types.gen.ts
+pnpm exec openapi-typescript docs/api/openapi.json -o src/lib/api/types.gen.ts --default-non-nullable false
 pnpm exec prettier --write docs/api/openapi.json src/lib/api/types.gen.ts

@@ -187,14 +187,14 @@ export interface components {
        * Notes
        * @default
        */
-      notes: string;
+      notes?: string;
       /** Tags */
       tags?: string[];
       /**
        * Title
        * @default
        */
-      title: string;
+      title?: string;
       /** Url */
       url: string;
     };
@@ -242,12 +242,12 @@ export interface components {
        * Limit
        * @default 100
        */
-      limit: number;
+      limit?: number;
       /**
        * Offset
        * @default 0
        */
-      offset: number;
+      offset?: number;
     };
     /** LoginIn */
     LoginIn: {
