@@ -121,6 +121,57 @@ test('shows the server message for an unknown field', async ({
   await expect(popup.locator('#status')).toContainText('no field with that name');
 });
 
+test('a failed initial lookup does not let Save blind-replace an existing entry', async ({
+  context,
+  extensionId,
+}) => {
+  await configureToken(context, extensionId);
+
+  // Save an entry with notes/tags so a blind replace would be observable.
+  const url = 'https://example.com/blip';
+  const setup = await openPopup(context, extensionId, url, 'Blip');
+  await setup.fill('#notes', 'precious notes');
+  await setup.fill('#tags', 'keep');
+  await setup.click('#save');
+  await expect(setup.locator('#status')).toContainText('Saved.');
+  await setup.close();
+
+  // Simulate a network blip on the popup's initial look-before-write only;
+  // let any later by-url lookup (the save-time retry) through normally.
+  const popup = await context.newPage();
+  let byUrlCalls = 0;
+  await popup.route('**/api/entries/by-url/**', async (route) => {
+    byUrlCalls += 1;
+    if (byUrlCalls === 1) {
+      await route.abort('failed');
+      return;
+    }
+    await route.continue();
+  });
+
+  const query = new URLSearchParams({ url, title: 'ignored' });
+  await popup.goto(`chrome-extension://${extensionId}/popup.html?${query}`);
+
+  // Initial lookup failed: an empty form is shown, with an error note —
+  // but Save is still armed.
+  await expect(popup.locator('#existing-note')).toHaveCount(0);
+  await expect(popup.locator('#notes')).toHaveValue('');
+  await expect(popup.locator('#status')).toHaveAttribute('data-kind', 'error');
+
+  // Saving now must re-check before writing, not blind-replace the held entry.
+  await popup.click('#save');
+  await expect(popup.locator('#existing-note')).toBeVisible();
+  await expect(popup.locator('#notes')).toHaveValue('precious notes');
+  await expect(popup.locator('#status')).not.toContainText('Saved.');
+  await expect(popup.locator('#status')).not.toContainText('Updated.');
+
+  // A second, conscious Save now proceeds normally.
+  await popup.fill('#title', 'Blip, revisited');
+  await popup.click('#save');
+  await expect(popup.locator('#status')).toContainText('Updated.');
+  await expect(popup.locator('#notes')).toHaveValue('precious notes');
+});
+
 test('password mode: logs in and saves through the session with CSRF', async ({
   context,
   extensionId,

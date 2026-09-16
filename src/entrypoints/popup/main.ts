@@ -12,6 +12,9 @@ const app = document.querySelector<HTMLDivElement>('#app')!;
 
 let settings: Settings | null = null;
 let client: HrcekClient | null = null;
+/** True when the initial look-before-write failed for a reason other than "not held". */
+let lookupFailed = false;
+let pageUrl = '';
 
 async function getPageInfo(): Promise<{ url: string; title: string }> {
   // e2e builds only: Playwright opens the popup as an ordinary tab, which
@@ -118,6 +121,29 @@ async function save(): Promise<void> {
     return;
   }
   setStatus('info', 'Saving…');
+
+  // The initial look-before-write failed (network blip, 5xx — not a
+  // confirmed "not held"). Posting now could blind-replace a held entry's
+  // notes/tags, so re-check before writing anything.
+  if (lookupFailed) {
+    try {
+      const existing = pageUrl.length > 0 ? await loadExisting(client, pageUrl) : null;
+      if (existing !== null) {
+        lookupFailed = false;
+        renderForm(entryToForm(existing), true);
+        setStatus(
+          'error',
+          'This address is already saved. Review the existing entry, then save again.',
+        );
+        return;
+      }
+      lookupFailed = false;
+    } catch (error) {
+      setStatus('error', messageFor(error));
+      return;
+    }
+  }
+
   try {
     const outcome = await submitSave(client, formToSaveRequest(collectForm()));
     setStatus('success', outcome.status === 'created' ? 'Saved.' : 'Updated.');
@@ -134,6 +160,7 @@ async function main(): Promise<void> {
   }
   client = clientFromSettings(settings);
   const { url, title } = await getPageInfo();
+  pageUrl = url;
   try {
     const existing = url.length > 0 ? await loadExisting(client, url) : null;
     if (existing !== null) {
@@ -142,6 +169,7 @@ async function main(): Promise<void> {
       renderForm(emptyForm(url, title), false);
     }
   } catch (error) {
+    lookupFailed = true;
     renderForm(emptyForm(url, title), false);
     setStatus('error', messageFor(error));
   }
