@@ -83,11 +83,11 @@ serverUrlInput.addEventListener('change', () => {
 
 /** The manifest holds no host permissions; ask for this server's origin. */
 async function requestOriginPermission(serverUrl: string): Promise<boolean> {
-  const origin = `${new URL(serverUrl).origin}/*`;
   try {
+    const origin = `${new URL(serverUrl).origin}/*`;
     return await browser.permissions.request({ origins: [origin] });
   } catch {
-    // e.g. not called from a user gesture; the save itself will surface it.
+    // e.g. malformed URL or not called from a user gesture; the save itself will surface it.
     return false;
   }
 }
@@ -104,33 +104,33 @@ async function save(): Promise<void> {
   const mode = currentMode();
   setStatus('info', 'Saving…');
 
-  const granted = await requestOriginPermission(serverUrl);
+  try {
+    const granted = await requestOriginPermission(serverUrl);
 
-  const settings = {
-    serverUrl,
-    authMode: mode,
-    token: mode === 'token' ? tokenInput.value.trim() : null,
-  };
-  await saveSettings(settings);
+    const settings = {
+      serverUrl,
+      authMode: mode,
+      token: mode === 'token' ? tokenInput.value.trim() : null,
+    };
+    await saveSettings(settings);
 
-  if (mode === 'session' && passwordInput.value.length > 0) {
-    try {
+    if (mode === 'session' && passwordInput.value.length > 0) {
       const user = await clientFromSettings(settings).login(
         identifierInput.value.trim(),
         passwordInput.value,
       );
       passwordInput.value = ''; // used once, never kept
       setStatus('success', `Saved. Signed in as ${user.email}.`);
-    } catch (error) {
-      setStatus('error', messageFor(error));
+      return;
     }
-    return;
-  }
 
-  setStatus(
-    'success',
-    granted ? 'Saved.' : 'Saved. Grant site access when asked on first save.',
-  );
+    setStatus(
+      'success',
+      granted ? 'Saved.' : 'Saved. Grant site access when asked on first save.',
+    );
+  } catch (error) {
+    setStatus('error', messageFor(error));
+  }
 }
 
 document.querySelector<HTMLButtonElement>('#test')!.addEventListener('click', () => {
