@@ -117,7 +117,7 @@ export default defineConfig({
 });
 ```
 
-Note: in MV3, host permission strings belong in `host_permissions`, but WXT accepts them in `permissions` and sorts them into the right manifest key per version. After building, verify placement (Step 10) — if `.output/chrome-mv3/manifest.json` does NOT show them under `host_permissions`, move the e2e origins into a literal `host_permissions` key for MV3 and `permissions` for MV2 in the same conditional style.
+Note: in MV3, host permission strings belong in `host_permissions`, but WXT accepts them in `permissions` and sorts them into the right manifest key per version. After building, verify placement (Step 10) — if `.output/chrome-mv3-e2e/manifest.json` does NOT show them under `host_permissions`, move the e2e origins into a literal `host_permissions` key for MV3 and `permissions` for MV2 in the same conditional style.
 
 - [ ] **Step 4: Create tsconfig.json**
 
@@ -264,7 +264,7 @@ If prettier fails on generated/doc files, that is real feedback — run `pnpm fo
 - [ ] **Step 10: Verify both browser builds**
 
 Run: `pnpm build && pnpm build:e2e`
-Expected: `.output/firefox-mv2/manifest.json` exists with `manifest_version: 2`, `browser_specific_settings.gecko.id`, and `optional_permissions` including `<all_urls>`; `.output/chrome-mv3/manifest.json` exists with `manifest_version: 3` and the localhost origins present (under `host_permissions` — see Step 3 note if not).
+Expected: `.output/firefox-mv2/manifest.json` exists with `manifest_version: 2`, `browser_specific_settings.gecko.id`, and `optional_permissions` including `<all_urls>`; `.output/chrome-mv3-e2e/manifest.json` exists with `manifest_version: 3` and the localhost origins present (under `host_permissions` — see Step 3 note if not).
 
 - [ ] **Step 11: Commit**
 
@@ -2296,7 +2296,7 @@ git commit -m "feat: in-memory fake Hrček server for e2e and contract tests"
 
 **Interfaces:**
 
-- Consumes: the built e2e extension (`pnpm build:e2e` → `.output/chrome-mv3`), the fake server CLI (Task 8), popup/options DOM contracts (Tasks 6–7), `FAKE_TOKEN`/`FAKE_IDENTIFIER`/`FAKE_PASSWORD` (Task 8).
+- Consumes: the built e2e extension (`pnpm build:e2e` → `.output/chrome-mv3-e2e`), the fake server CLI (Task 8), popup/options DOM contracts (Tasks 6–7), `FAKE_TOKEN`/`FAKE_IDENTIFIER`/`FAKE_PASSWORD` (Task 8).
 - Produces: `pnpm test:e2e` — the command CI runs.
 
 - [ ] **Step 1: Create playwright.config.ts**
@@ -2331,7 +2331,7 @@ export const test = base.extend<{
 }>({
   // eslint-disable-next-line no-empty-pattern
   context: async ({}, use) => {
-    const extensionPath = path.resolve('.output/chrome-mv3');
+    const extensionPath = path.resolve('.output/chrome-mv3-e2e');
     const context = await chromium.launchPersistentContext('', {
       channel: 'chromium', // headless chromium supports extensions
       args: [
@@ -2505,7 +2505,7 @@ Run: `pnpm exec playwright install chromium && pnpm test:e2e`
 Expected: all 6 tests PASS. Known variables if something fails:
 
 - Extension not loading headless → the `channel: 'chromium'` line is required (headless shell does not support extensions).
-- `serviceworker` event never fires → the background entrypoint must exist in the build; check `.output/chrome-mv3/manifest.json` has a `background` key.
+- `serviceworker` event never fires → the background entrypoint must exist in the build; check `.output/chrome-mv3-e2e/manifest.json` has a `background` key.
 - Fetches to the fake server blocked → confirm the e2e build's manifest grants `http://127.0.0.1/*` and `http://localhost/*` (Task 1, Step 3 note).
 - Session test failing on cookies → `browser.cookies.get` requires the cookies permission AND host access; both are in the e2e build.
 
