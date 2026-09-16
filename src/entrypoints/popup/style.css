@@ -4,3 +4,32 @@ body {
   font-family: system-ui, sans-serif;
   font-size: 0.875rem;
 }
+#app {
+  padding: 0.75rem;
+}
+label {
+  display: block;
+  margin-bottom: 0.5rem;
+}
+label input,
+label textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 0.15rem;
+}
+.field-row {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+.field-row input {
+  flex: 1;
+  min-width: 0;
+}
+#status[data-kind='error'] {
+  color: #b00020;
+}
+#status[data-kind='success'] {
+  color: #1a7f37;
+}
