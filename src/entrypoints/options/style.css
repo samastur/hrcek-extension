@@ -1,0 +1,30 @@
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  font-size: 0.9rem;
+}
+#app {
+  max-width: 30rem;
+  padding: 1rem;
+}
+label {
+  display: block;
+  margin-bottom: 0.6rem;
+}
+label input[type='url'],
+label input[type='password'],
+#identifier {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 0.15rem;
+}
+fieldset {
+  margin: 0 0 0.75rem;
+}
+#status[data-kind='error'] {
+  color: #b00020;
+}
+#status[data-kind='success'] {
+  color: #1a7f37;
+}
