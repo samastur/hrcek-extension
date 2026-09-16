@@ -54,5 +54,50 @@ export function runContractSuite(name: string, target: () => ContractTarget): vo
         );
       expect(error?.code).toBe('HRC-FIELD-0001');
     });
+
+    it('upsert replaces notes/tags but patches fields', async () => {
+      const url = testUrl('upsert-semantics');
+      const first = await client().saveEntry({
+        url,
+        title: 'first',
+        notes: 'original notes',
+        tags: ['a', 'b'],
+        fields: { price: '10' },
+      });
+      expect(first.status).toBe('created');
+      expect(first.entry.fields.Price).toBe('10');
+
+      // Second save omits notes/tags/fields entirely except title.
+      const second = await client().saveEntry({ url, title: 'second' });
+      expect(second.status).toBe('updated');
+      expect(second.entry.id).toBe(first.entry.id);
+      expect(second.entry.notes).toBe(''); // replaced (omitted -> cleared)
+      expect(second.entry.tags).toEqual([]); // replaced (omitted -> cleared)
+      expect(second.entry.fields.Price).toBe('10'); // patched -> survives
+    });
+
+    it('clears a field by submitting an empty string', async () => {
+      const url = testUrl('clear-field');
+      const created = await client().saveEntry({ url, fields: { price: '5' } });
+      expect(created.entry.fields.Price).toBe('5');
+
+      const cleared = await client().saveEntry({ url, fields: { price: '' } });
+      expect(cleared.entry.fields.Price).toBeUndefined();
+    });
+
+    it('agrees with the client on address normalization when matching for update', async () => {
+      // target() mints a fresh runId per call — capture it once so both
+      // requests below address the same entry.
+      const runId = target().runId;
+      const first = await client().saveEntry({
+        url: `https://contract-tests.example.com/${runId}/norm`,
+      });
+      expect(first.status).toBe('created');
+
+      const variant = `  HTTPS://Contract-Tests.example.com/${runId}/norm  `;
+      const second = await client().saveEntry({ url: variant });
+      expect(second.status).toBe('updated');
+      expect(second.entry.id).toBe(first.entry.id);
+    });
   });
 }
