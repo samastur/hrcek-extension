@@ -9,7 +9,7 @@ export class TokenAuth implements AuthStrategy {
 
   constructor(private readonly token: string) {}
 
-  async headers(): Promise<Record<string, string>> {
+  async headers(_method: string): Promise<Record<string, string>> {
     return { Authorization: `Bearer ${this.token}` };
   }
 }
