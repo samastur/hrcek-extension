@@ -1,0 +1,37 @@
+{
+  "name": "hrcek-extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser extension client for the Hrček link-saving service",
+  "scripts": {
+    "dev": "wxt -b firefox",
+    "dev:chrome": "wxt -b chrome",
+    "build": "wxt build -b firefox",
+    "build:chrome": "wxt build -b chrome",
+    "build:e2e": "wxt build -b chrome --mode e2e",
+    "zip": "wxt zip -b firefox",
+    "typecheck": "wxt prepare && tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest",
+    "test:e2e": "pnpm build:e2e && playwright test",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "refresh-schema": "sh scripts/refresh-schema.sh",
+    "postinstall": "wxt prepare"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
+    "eslint": "^10.10.0",
+    "jsdom": "^30.0.1",
+    "msw": "^2.15.0",
+    "openapi-typescript": "^7.13.0",
+    "prettier": "^3.9.6",
+    "tsx": "^4.23.13",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^5.0.1",
+    "wxt": "^0.21.4"
+  }
+}

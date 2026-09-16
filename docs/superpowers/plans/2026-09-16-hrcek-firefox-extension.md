@@ -26,6 +26,7 @@
 ### Task 1: Project scaffold (WXT + TypeScript + lint + empty test run)
 
 **Files:**
+
 - Create: `package.json`
 - Create: `wxt.config.ts`
 - Create: `tsconfig.json`
@@ -41,6 +42,7 @@
 - Create: `src/entrypoints/options/main.ts`
 
 **Interfaces:**
+
 - Consumes: nothing (empty repo; only `docs/` exists).
 - Produces: a building WXT project. Commands later tasks rely on: `pnpm build`, `pnpm build:e2e`, `pnpm test`, `pnpm typecheck`, `pnpm lint`. Entrypoint HTML files build to `popup.html` and `options.html` in `.output/<target>/`.
 
@@ -276,12 +278,14 @@ git commit -m "chore: scaffold WXT project with TypeScript, Vitest, ESLint"
 ### Task 2: Vendor the OpenAPI schema and generate API types
 
 **Files:**
+
 - Create: `scripts/refresh-schema.sh`
 - Create: `docs/api/openapi.json` (copied)
 - Create: `src/lib/api/types.gen.ts` (generated)
 - Create: `src/lib/api/types.ts`
 
 **Interfaces:**
+
 - Consumes: `../hrcek/docs/api/openapi.json` (the Hrček repo checked out as a sibling directory).
 - Produces: `src/lib/api/types.ts` exporting `EntryIn`, `EntryOut`, `UserOut`, `HealthOut`, `LoginIn` type aliases. Shapes (from the schema): `EntryOut = { id: number; url: string; title: string; notes: string; tags: string[]; fields: Record<string, string>; created_at: string; updated_at: string }`, `EntryIn = { url: string; title?: string; notes?: string; tags?: string[]; fields?: Record<string, unknown> | null }`, `UserOut = { email: string; display_name: string | null }`, `HealthOut = { status: string; service: string; version: string; message: string }`.
 
@@ -334,6 +338,7 @@ git commit -m "feat: vendor Hrček OpenAPI schema and generate API types"
 ### Task 3: API error model and HrcekClient
 
 **Files:**
+
 - Create: `src/lib/api/errors.ts`
 - Create: `src/lib/api/errors.test.ts`
 - Create: `src/lib/api/auth.ts`
@@ -342,6 +347,7 @@ git commit -m "feat: vendor Hrček OpenAPI schema and generate API types"
 - Create: `src/lib/api/client.test.ts`
 
 **Interfaces:**
+
 - Consumes: types from Task 2 (`src/lib/api/types.ts`).
 - Produces:
   - `class HrcekApiError extends Error { status: number; code: string; details: Record<string, unknown> }`
@@ -611,7 +617,10 @@ describe('HrcekClient', () => {
       }),
     );
 
-    expect(await client().me()).toEqual({ email: 'nina@example.com', display_name: null });
+    expect(await client().me()).toEqual({
+      email: 'nina@example.com',
+      display_name: null,
+    });
   });
 
   it('saveEntry() distinguishes created from updated by status code', async () => {
@@ -662,7 +671,10 @@ describe('HrcekClient', () => {
 
     const error = await client()
       .getEntryByUrl('https://example.com/nothing')
-      .then(() => null, (e: unknown) => e);
+      .then(
+        () => null,
+        (e: unknown) => e,
+      );
     expect(error).toBeInstanceOf(HrcekApiError);
     expect((error as HrcekApiError).code).toBe('HRC-CORE-0003');
     expect((error as HrcekApiError).status).toBe(404);
@@ -673,7 +685,10 @@ describe('HrcekClient', () => {
 
     const error = await client()
       .health()
-      .then(() => null, (e: unknown) => e);
+      .then(
+        () => null,
+        (e: unknown) => e,
+      );
     expect(error).toBeInstanceOf(HrcekNetworkError);
   });
 
@@ -747,11 +762,7 @@ export class HrcekClient {
     };
   }
 
-  private async request(
-    method: string,
-    path: string,
-    body?: unknown,
-  ): Promise<Response> {
+  private async request(method: string, path: string, body?: unknown): Promise<Response> {
     const headers: Record<string, string> = {
       Accept: 'application/json',
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
@@ -789,6 +800,7 @@ git commit -m "feat: typed HrcekClient over fetch"
 ### Task 4: Settings module and client factory
 
 **Files:**
+
 - Create: `src/lib/settings.ts`
 - Create: `src/lib/settings.test.ts`
 - Create: `src/lib/platform/cookies.ts`
@@ -796,6 +808,7 @@ git commit -m "feat: typed HrcekClient over fetch"
 - Create: `src/lib/client-factory.test.ts`
 
 **Interfaces:**
+
 - Consumes: `HrcekClient`, `TokenAuth`, `SessionAuth` from Task 3.
 - Produces:
   - `type AuthMode = 'token' | 'session'`
@@ -948,10 +961,7 @@ import { browser } from 'wxt/browser';
  * today; split into per-browser files here if Safari's cookie handling
  * ever diverges.
  */
-export async function getCookie(
-  serverUrl: string,
-  name: string,
-): Promise<string | null> {
+export async function getCookie(serverUrl: string, name: string): Promise<string | null> {
   const cookie = await browser.cookies.get({ url: serverUrl, name });
   return cookie?.value ?? null;
 }
@@ -1000,10 +1010,12 @@ git commit -m "feat: client factory with per-mode auth and cookie platform modul
 ### Task 5: Save flow (look-before-write, single submit boundary)
 
 **Files:**
+
 - Create: `src/lib/save.ts`
 - Create: `src/lib/save.test.ts`
 
 **Interfaces:**
+
 - Consumes: `HrcekClient`, `SaveResult` (Task 3); `HrcekApiError` (Task 3); `EntryOut` (Task 2).
 - Produces:
   - `interface SaveRequest { url: string; title: string; notes: string; tags: string[]; fields: Record<string, string> }`
@@ -1157,12 +1169,14 @@ git commit -m "feat: look-before-write save flow with queue-ready submit boundar
 ### Task 6: Popup form model and UI
 
 **Files:**
+
 - Create: `src/entrypoints/popup/form.ts`
 - Create: `src/entrypoints/popup/form.test.ts`
 - Modify: `src/entrypoints/popup/main.ts` (replace placeholder)
 - Modify: `src/entrypoints/popup/style.css` (replace placeholder)
 
 **Interfaces:**
+
 - Consumes: `loadSettings` (Task 4), `clientFromSettings` (Task 4), `loadExisting`/`submitSave`/`SaveRequest` (Task 5), `HrcekApiError`/`HrcekNetworkError` (Task 3), `EntryOut` (Task 2).
 - Produces (used by e2e tests in Task 9):
   - `interface FormState { url: string; title: string; notes: string; tags: string; fields: Array<{ name: string; value: string }> }`
@@ -1392,10 +1406,9 @@ function renderForm(form: FormState, existing: boolean): void {
     fieldsBox.append(fieldRow(name, value));
   }
 
-  document.querySelector<HTMLButtonElement>('#add-field')!.addEventListener(
-    'click',
-    () => fieldsBox.append(fieldRow('', '')),
-  );
+  document
+    .querySelector<HTMLButtonElement>('#add-field')!
+    .addEventListener('click', () => fieldsBox.append(fieldRow('', '')));
 
   document
     .querySelector<HTMLFormElement>('#entry-form')!
@@ -1510,11 +1523,13 @@ git commit -m "feat: popup save UI with look-before-write prefill"
 ### Task 7: Options page
 
 **Files:**
+
 - Modify: `src/entrypoints/options/main.ts` (replace placeholder)
 - Create: `src/entrypoints/options/style.css`
 - Modify: `src/entrypoints/options/index.html` (link stylesheet via import in main.ts — no HTML change needed beyond what exists)
 
 **Interfaces:**
+
 - Consumes: `loadSettings`/`saveSettings`/`normalizeServerUrl` (Task 4), `clientFromSettings` (Task 4), `HrcekApiError`/`HrcekNetworkError` (Task 3).
 - Produces (DOM contract used by e2e in Task 9): inputs `#server-url`, `#token`, `#identifier`, `#password`; radios `#mode-token`, `#mode-session` (name `mode`); buttons `#save`, `#test`; status paragraph `#status` with `data-kind`; link `#account-link` pointing at `${serverUrl}/accounts/me/`. Saving in session mode with a filled password logs in immediately and clears the password input; the password is never stored.
 
@@ -1748,11 +1763,13 @@ git commit -m "feat: options page with token and session auth modes"
 ### Task 8: Fake Hrček server
 
 **Files:**
+
 - Create: `tests/fake-hrcek/server.ts`
 - Create: `tests/fake-hrcek/server.test.ts`
 - Create: `tests/fake-hrcek/main.ts`
 
 **Interfaces:**
+
 - Consumes: `EntryOut` type (Task 2) — the fake is typed against the generated schema so it cannot drift.
 - Produces (used by e2e in Task 9 and contract tests in Task 10):
   - `const FAKE_TOKEN = 'hrcek_test_token'`, `const FAKE_IDENTIFIER = 'nina@example.com'`, `const FAKE_PASSWORD = 'correct horse'`, `const FAKE_USER = { email: 'nina@example.com', display_name: null }`
@@ -1832,7 +1849,10 @@ describe('fake hrcek', () => {
   });
 
   it('clears a field only when named with an empty string', async () => {
-    await post({ url: 'https://example.com/w', fields: { price: '10', priority: 'low' } });
+    await post({
+      url: 'https://example.com/w',
+      fields: { price: '10', priority: 'low' },
+    });
     const response = await post({ url: 'https://example.com/w', fields: { price: '' } });
     expect((await response.json()).fields).toEqual({ Priority: 'low' });
   });
@@ -1844,7 +1864,10 @@ describe('fake hrcek', () => {
   });
 
   it('answers 422 HRC-FIELD-0001 for an unknown field name', async () => {
-    const response = await post({ url: 'https://example.com/x', fields: { colour: 'red' } });
+    const response = await post({
+      url: 'https://example.com/x',
+      fields: { colour: 'red' },
+    });
     expect(response.status).toBe(422);
     const body = await response.json();
     expect(body.error.code).toBe('HRC-FIELD-0001');
@@ -1852,7 +1875,10 @@ describe('fake hrcek', () => {
   });
 
   it('answers 422 HRC-CORE-0002 for a bad value, keyed by owner spelling', async () => {
-    const response = await post({ url: 'https://example.com/x', fields: { priority: 'urgent' } });
+    const response = await post({
+      url: 'https://example.com/x',
+      fields: { priority: 'urgent' },
+    });
     expect(response.status).toBe(422);
     const body = await response.json();
     expect(body.error.code).toBe('HRC-CORE-0002');
@@ -2127,11 +2153,7 @@ export async function startFakeHrcek(port = 0): Promise<FakeHrcek> {
           password?: string;
         };
         if (body.identifier !== FAKE_IDENTIFIER || body.password !== FAKE_PASSWORD) {
-          return json(
-            res,
-            401,
-            errorBody('HRC-AUTH-0001', 'Invalid credentials.'),
-          );
+          return json(res, 401, errorBody('HRC-AUTH-0001', 'Invalid credentials.'));
         }
         res.setHeader('Set-Cookie', [
           `sessionid=${SESSION_ID}; Path=/`,
@@ -2267,11 +2289,13 @@ git commit -m "feat: in-memory fake Hrček server for e2e and contract tests"
 ### Task 9: Playwright e2e suite
 
 **Files:**
+
 - Create: `playwright.config.ts`
 - Create: `tests/e2e/fixtures.ts`
 - Create: `tests/e2e/save-flow.spec.ts`
 
 **Interfaces:**
+
 - Consumes: the built e2e extension (`pnpm build:e2e` → `.output/chrome-mv3`), the fake server CLI (Task 8), popup/options DOM contracts (Tasks 6–7), `FAKE_TOKEN`/`FAKE_IDENTIFIER`/`FAKE_PASSWORD` (Task 8).
 - Produces: `pnpm test:e2e` — the command CI runs.
 
@@ -2349,7 +2373,10 @@ async function openOptions(context: BrowserContext, extensionId: string): Promis
   return page;
 }
 
-async function configureToken(context: BrowserContext, extensionId: string): Promise<void> {
+async function configureToken(
+  context: BrowserContext,
+  extensionId: string,
+): Promise<void> {
   const page = await openOptions(context, extensionId);
   await page.fill('#server-url', SERVER);
   await page.check('#mode-token');
@@ -2371,7 +2398,10 @@ async function openPopup(
   return page;
 }
 
-test('shows a pointer to settings when unconfigured', async ({ context, extensionId }) => {
+test('shows a pointer to settings when unconfigured', async ({
+  context,
+  extensionId,
+}) => {
   const popup = await openPopup(context, extensionId, 'https://example.com/a', 'A');
   await expect(popup.locator('#open-options')).toBeVisible();
 });
@@ -2388,7 +2418,12 @@ test('options page saves settings and tests the connection', async ({
 
 test('saves a new entry from the popup', async ({ context, extensionId }) => {
   await configureToken(context, extensionId);
-  const popup = await openPopup(context, extensionId, 'https://example.com/watch', 'A watch');
+  const popup = await openPopup(
+    context,
+    extensionId,
+    'https://example.com/watch',
+    'A watch',
+  );
 
   await expect(popup.locator('#url')).toHaveValue('https://example.com/watch');
   await expect(popup.locator('#title')).toHaveValue('A watch');
@@ -2404,13 +2439,23 @@ test('reopening a saved address prefills the existing entry and updates it', asy
   extensionId,
 }) => {
   await configureToken(context, extensionId);
-  const first = await openPopup(context, extensionId, 'https://example.com/watch', 'A watch');
+  const first = await openPopup(
+    context,
+    extensionId,
+    'https://example.com/watch',
+    'A watch',
+  );
   await first.fill('#notes', 'original notes');
   await first.click('#save');
   await expect(first.locator('#status')).toContainText('Saved.');
   await first.close();
 
-  const second = await openPopup(context, extensionId, 'https://example.com/watch', 'ignored');
+  const second = await openPopup(
+    context,
+    extensionId,
+    'https://example.com/watch',
+    'ignored',
+  );
   await expect(second.locator('#existing-note')).toBeVisible();
   await expect(second.locator('#notes')).toHaveValue('original notes');
   await second.fill('#title', 'A watch, revisited');
@@ -2418,7 +2463,10 @@ test('reopening a saved address prefills the existing entry and updates it', asy
   await expect(second.locator('#status')).toContainText('Updated.');
 });
 
-test('shows the server message for an unknown field', async ({ context, extensionId }) => {
+test('shows the server message for an unknown field', async ({
+  context,
+  extensionId,
+}) => {
   await configureToken(context, extensionId);
   const popup = await openPopup(context, extensionId, 'https://example.com/x', 'X');
 
@@ -2455,6 +2503,7 @@ test('password mode: logs in and saves through the session with CSRF', async ({
 
 Run: `pnpm exec playwright install chromium && pnpm test:e2e`
 Expected: all 6 tests PASS. Known variables if something fails:
+
 - Extension not loading headless → the `channel: 'chromium'` line is required (headless shell does not support extensions).
 - `serviceworker` event never fires → the background entrypoint must exist in the build; check `.output/chrome-mv3/manifest.json` has a `background` key.
 - Fetches to the fake server blocked → confirm the e2e build's manifest grants `http://127.0.0.1/*` and `http://localhost/*` (Task 1, Step 3 note).
@@ -2472,11 +2521,13 @@ git commit -m "test: Playwright e2e suite for save and options flows"
 ### Task 10: Contract tests (fake always, real Hrček opt-in)
 
 **Files:**
+
 - Create: `tests/contract/suite.ts`
 - Create: `tests/contract/fake.test.ts`
 - Create: `tests/contract/real.test.ts`
 
 **Interfaces:**
+
 - Consumes: `HrcekClient`/`TokenAuth` (Task 3), `loadExisting` (Task 5), fake server (Task 8).
 - Produces: a shared contract suite proving the client speaks the same protocol to the fake and to a real Hrček. Real run: `HRCEK_URL=http://127.0.0.1:8000 HRCEK_TOKEN=hrcek_… pnpm vitest run tests/contract/real.test.ts`.
 
@@ -2534,7 +2585,10 @@ export function runContractSuite(name: string, target: () => ContractTarget): vo
     it('rejects an unknown field name with HRC-FIELD-0001', async () => {
       const error = await client()
         .saveEntry({ url: testUrl('bad-field'), fields: { 'no-such-field-x': '1' } })
-        .then(() => null, (e: { code?: string }) => e);
+        .then(
+          () => null,
+          (e: { code?: string }) => e,
+        );
       expect(error?.code).toBe('HRC-FIELD-0001');
     });
   });
@@ -2612,9 +2666,11 @@ git commit -m "test: API contract suite against fake and opt-in real Hrček"
 ### Task 11: CI workflow
 
 **Files:**
+
 - Create: `.github/workflows/ci.yml`
 
 **Interfaces:**
+
 - Consumes: every command defined in Task 1's package.json.
 - Produces: CI on push/PR to main.
 
@@ -2675,10 +2731,12 @@ Expected: green. If pnpm/node versions mismatch the runner, align the workflow v
 ### Task 12: CLAUDE.md and README
 
 **Files:**
+
 - Create: `CLAUDE.md`
 - Create: `README.md`
 
 **Interfaces:**
+
 - Consumes: everything above (documents it).
 - Produces: the working agreement future sessions load.
 
@@ -2768,7 +2826,7 @@ Design spec: `docs/superpowers/specs/2026-09-16-hrcek-extension-design.md`.
 
 - [ ] **Step 2: Write README.md**
 
-```markdown
+````markdown
 # Hrček extension
 
 Browser extension for saving links to a [Hrček](../hrcek) server.
@@ -2786,10 +2844,12 @@ pnpm test:e2e     # Playwright e2e (Chromium + in-repo fake server)
 pnpm build        # production Firefox build
 pnpm zip          # AMO-ready zip
 ```
+````
 
 See `CLAUDE.md` for architecture rules and `docs/superpowers/specs/`
 for the design.
-```
+
+````
 
 - [ ] **Step 3: Verify lint still passes (prettier checks markdown)**
 
@@ -2801,7 +2861,7 @@ Expected: PASS (run `pnpm format` if prettier objects to the new files).
 ```bash
 git add CLAUDE.md README.md
 git commit -m "docs: working agreement and README"
-```
+````
 
 ---
 
@@ -2810,4 +2870,7 @@ git commit -m "docs: working agreement and README"
 - Spec coverage: popup save/edit with look-before-write (Tasks 5–6), options with both auth modes and test-connection (Task 7), token-only storage / never-persist password (Tasks 4, 7), optional host permission (Tasks 1, 7), generated types + refresh script (Task 2), error-code branching (Tasks 3, 5), fake server typed against schema (Task 8), e2e in Chromium (Task 9), opt-in real-Hrček contract run (Task 10), CI (Task 11), CLAUDE.md (Task 12), queue-ready submit boundary (Task 5). Batch saving and the entries list are explicitly out of v1 scope.
 - The popup/options DOM wiring is deliberately not unit-tested; its logic lives in tested `lib/` and `form.ts` modules, and the DOM contract is exercised by six e2e tests.
 - Known risk spots are called out inline where the executor must verify reality: manifest key placement (Task 1 Step 3), generated schema names (Task 2 Step 2), headless extension support and cookie behavior (Task 9 Step 4).
+
+```
+
 ```
