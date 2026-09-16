@@ -13,12 +13,17 @@ const app = document.querySelector<HTMLDivElement>('#app')!;
 let settings: Settings | null = null;
 let client: HrcekClient | null = null;
 
-/** e2e seam: ?url=&title= override the active-tab lookup. */
 async function getPageInfo(): Promise<{ url: string; title: string }> {
-  const params = new URLSearchParams(window.location.search);
-  const urlOverride = params.get('url');
-  if (urlOverride !== null) {
-    return { url: urlOverride, title: params.get('title') ?? '' };
+  // e2e builds only: Playwright opens the popup as an ordinary tab, which
+  // makes the popup itself the active tab, so ?url=&title= stand in for the
+  // page under test. MODE is a build-time constant, so this branch is not in
+  // production bundles.
+  if (import.meta.env.MODE === 'e2e') {
+    const params = new URLSearchParams(window.location.search);
+    const urlOverride = params.get('url');
+    if (urlOverride !== null) {
+      return { url: urlOverride, title: params.get('title') ?? '' };
+    }
   }
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   return { url: tab?.url ?? '', title: tab?.title ?? '' };
