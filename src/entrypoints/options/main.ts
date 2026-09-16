@@ -126,7 +126,9 @@ async function save(): Promise<void> {
 
     setStatus(
       'success',
-      granted ? 'Saved.' : 'Saved. Grant site access when asked on first save.',
+      granted
+        ? 'Saved.'
+        : 'Saved. Site access was declined — press Save again to grant it.',
     );
   } catch (error) {
     setStatus('error', messageFor(error));
