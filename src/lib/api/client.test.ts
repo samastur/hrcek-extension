@@ -1,7 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
-import { TokenAuth } from './auth';
 import { HrcekClient } from './client';
 import { HrcekApiError, HrcekNetworkError } from './errors';
 import type { EntryOut } from './types';
@@ -14,7 +13,7 @@ afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
 function client() {
-  return new HrcekClient(BASE, new TokenAuth('hrcek_abc'));
+  return new HrcekClient(BASE, 'hrcek_abc');
 }
 
 const ENTRY: EntryOut = {
@@ -24,6 +23,7 @@ const ENTRY: EntryOut = {
   notes: '',
   tags: [],
   fields: {},
+  image: null,
   created_at: '2026-09-13T12:28:12.937Z',
   updated_at: '2026-09-13T12:28:12.937Z',
 };
@@ -41,6 +41,23 @@ describe('HrcekClient', () => {
       email: 'nina@example.com',
       display_name: null,
     });
+  });
+
+  it('never sends cookies — the token is the only credential', async () => {
+    server.use(
+      http.get(`${BASE}/api/auth/me`, () =>
+        HttpResponse.json({ email: 'nina@example.com', display_name: null }),
+      ),
+    );
+
+    let seen: RequestCredentials | undefined;
+    const spy: typeof fetch = (input, init) => {
+      seen = init?.credentials;
+      return fetch(input as string, init);
+    };
+
+    await new HrcekClient(BASE, 'hrcek_abc', spy).me();
+    expect(seen).toBe('omit');
   });
 
   it('saveEntry() distinguishes created from updated by status code', async () => {
@@ -111,21 +128,73 @@ describe('HrcekClient', () => {
       );
     expect(error).toBeInstanceOf(HrcekNetworkError);
   });
+});
 
-  it('login() posts identifier and password', async () => {
+describe('createToken', () => {
+  const CREATED = {
+    id: 4,
+    name: 'Hrček extension (Firefox on macOS)',
+    token: 'hrcek_new_token',
+    created_at: '2026-09-20T09:12:44.201Z',
+    expires_at: null,
+  };
+
+  it('posts the name and credentials, and omits expires_at so the token lasts', async () => {
     server.use(
-      http.post(`${BASE}/api/auth/login`, async ({ request }) => {
+      http.post(`${BASE}/api/auth/tokens`, async ({ request }) => {
         expect(await request.json()).toEqual({
+          name: 'Hrček extension (Firefox on macOS)',
           identifier: 'nina@example.com',
           password: 's3cret',
         });
-        return HttpResponse.json({ email: 'nina@example.com', display_name: null });
+        return HttpResponse.json(CREATED, { status: 201 });
       }),
     );
 
-    expect(await client().login('nina@example.com', 's3cret')).toEqual({
-      email: 'nina@example.com',
-      display_name: null,
-    });
+    const created = await new HrcekClient(BASE, null).createToken(
+      'Hrček extension (Firefox on macOS)',
+      'nina@example.com',
+      's3cret',
+    );
+    expect(created.token).toBe('hrcek_new_token');
+    expect(created.expires_at).toBeNull();
+  });
+
+  it('sends no Authorization header — minting is credential-based, not token-based', async () => {
+    server.use(
+      http.post(`${BASE}/api/auth/tokens`, ({ request }) => {
+        expect(request.headers.get('Authorization')).toBeNull();
+        return HttpResponse.json(CREATED, { status: 201 });
+      }),
+    );
+
+    // Even when a stale token is configured, it must not be presented here:
+    // the server refuses token-minted-by-token with HRC-AUTH-0006.
+    await new HrcekClient(BASE, 'hrcek_stale').createToken('n', 'nina@example.com', 'p');
+  });
+
+  it('surfaces bad credentials as HRC-AUTH-0001', async () => {
+    server.use(
+      http.post(`${BASE}/api/auth/tokens`, () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: 'HRC-AUTH-0001',
+              message: 'Those credentials are not valid.',
+              details: {},
+            },
+          },
+          { status: 401 },
+        ),
+      ),
+    );
+
+    const error = await new HrcekClient(BASE, null)
+      .createToken('n', 'nina@example.com', 'wrong')
+      .then(
+        () => null,
+        (e: unknown) => e,
+      );
+    expect((error as HrcekApiError).code).toBe('HRC-AUTH-0001');
   });
 });

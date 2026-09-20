@@ -11,6 +11,7 @@ const ENTRY: EntryOut = {
   notes: '',
   tags: [],
   fields: { Price: '129' },
+  image: null,
   created_at: '2026-09-13T12:28:12.937Z',
   updated_at: '2026-09-13T12:28:12.937Z',
 };

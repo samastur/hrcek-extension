@@ -21,7 +21,6 @@ async function configureToken(
 ): Promise<void> {
   const page = await openOptions(context, extensionId);
   await page.fill('#server-url', SERVER);
-  await page.check('#mode-token');
   await page.fill('#token', FAKE_TOKEN);
   await page.click('#save');
   await expect(page.locator('#status')).toHaveAttribute('data-kind', 'success');
@@ -172,21 +171,49 @@ test('a failed initial lookup does not let Save blind-replace an existing entry'
   await expect(popup.locator('#notes')).toHaveValue('precious notes');
 });
 
-test('password mode: logs in and saves through the session with CSRF', async ({
+test('mints a token from credentials, then saves with it', async ({
   context,
   extensionId,
 }) => {
   const options = await openOptions(context, extensionId);
   await options.fill('#server-url', SERVER);
-  await options.check('#mode-session');
   await options.fill('#identifier', FAKE_IDENTIFIER);
   await options.fill('#password', FAKE_PASSWORD);
-  await options.click('#save');
-  await expect(options.locator('#status')).toContainText('Signed in as nina@example.com');
+  await options.click('#create');
+
+  await expect(options.locator('#status')).toContainText('Token created as');
+  await expect(options.locator('#status')).toContainText('Hrček extension');
   await expect(options.locator('#password')).toHaveValue(''); // never kept
+  // The minted token is what the extension will use from now on.
+  await expect(options.locator('#token')).toHaveValue(/^hrcek_/);
   await options.close();
 
   const popup = await openPopup(context, extensionId, 'https://example.com/s', 'S');
   await popup.click('#save');
   await expect(popup.locator('#status')).toContainText('Saved.');
+});
+
+test('says what to do when the server cannot mint tokens', async ({
+  context,
+  extensionId,
+}) => {
+  const options = await openOptions(context, extensionId);
+  // A Hrček without samastur/hrcek#53 answers 404 here.
+  await options.route(`${SERVER}/api/auth/tokens`, (route) =>
+    route.fulfill({
+      status: 404,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: { code: 'HRC-CORE-0003', message: 'Not found.', details: {} },
+      }),
+    }),
+  );
+
+  await options.fill('#server-url', SERVER);
+  await options.fill('#identifier', FAKE_IDENTIFIER);
+  await options.fill('#password', FAKE_PASSWORD);
+  await options.click('#create');
+
+  await expect(options.locator('#status')).toHaveAttribute('data-kind', 'error');
+  await expect(options.locator('#status')).toContainText('clients page');
 });

@@ -5,3 +5,4 @@ export type EntryOut = components['schemas']['EntryOut'];
 export type UserOut = components['schemas']['UserOut'];
 export type HealthOut = components['schemas']['HealthOut'];
 export type LoginIn = components['schemas']['LoginIn'];
+export type TokenOut = components['schemas']['TokenOut'];

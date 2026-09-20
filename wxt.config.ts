@@ -8,7 +8,6 @@ export default defineConfig({
     permissions: [
       'activeTab',
       'storage',
-      'cookies',
       // e2e builds talk to the fake server without the optional-permission
       // dance (Playwright cannot click native permission prompts). MV2 has
       // no separate host_permissions key, so the origins go here.

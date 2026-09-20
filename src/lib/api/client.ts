@@ -1,6 +1,5 @@
-import type { AuthStrategy } from './auth';
 import { errorFromResponse, HrcekNetworkError } from './errors';
-import type { EntryIn, EntryOut, HealthOut, UserOut } from './types';
+import type { EntryIn, EntryOut, HealthOut, TokenOut, UserOut } from './types';
 
 export type SaveResult = { status: 'created' | 'updated'; entry: EntryOut };
 
@@ -9,7 +8,8 @@ export class HrcekClient {
   constructor(
     /** e.g. "https://hrcek.example.com" — no trailing slash. */
     private readonly baseUrl: string,
-    private readonly auth: AuthStrategy,
+    /** Bearer token, or null when only anonymous calls are needed. */
+    private readonly token: string | null,
     private readonly fetchFn: typeof fetch = (...args) => fetch(...args),
   ) {}
 
@@ -21,11 +21,23 @@ export class HrcekClient {
     return (await this.request('GET', '/api/auth/me')).json();
   }
 
-  async login(identifier: string, password: string): Promise<UserOut> {
-    const response = await this.request('POST', '/api/auth/login', {
-      identifier,
-      password,
-    });
+  /**
+   * Trade credentials for a bearer token. Deliberately anonymous: the
+   * server refuses to mint a token for a request that presents one, so a
+   * token that leaked could not issue its own replacement.
+   */
+  async createToken(
+    name: string,
+    identifier: string,
+    password: string,
+  ): Promise<TokenOut> {
+    // No expires_at: the extension's token should keep working.
+    const response = await this.request(
+      'POST',
+      '/api/auth/tokens',
+      { name, identifier, password },
+      { anonymous: true },
+    );
     return response.json();
   }
 
@@ -43,18 +55,27 @@ export class HrcekClient {
     };
   }
 
-  private async request(method: string, path: string, body?: unknown): Promise<Response> {
+  private async request(
+    method: string,
+    path: string,
+    body?: unknown,
+    options: { anonymous?: boolean } = {},
+  ): Promise<Response> {
+    const authenticated = !options.anonymous && this.token !== null;
     const headers: Record<string, string> = {
       Accept: 'application/json',
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-      ...(await this.auth.headers(method)),
+      ...(authenticated ? { Authorization: `Bearer ${this.token}` } : {}),
     };
     let response: Response;
     try {
       response = await this.fetchFn(`${this.baseUrl}${path}`, {
         method,
         headers,
-        credentials: this.auth.credentials,
+        // Cookies are never used: session auth cannot pass Django's CSRF
+        // origin check from an extension, so bearer tokens are the only
+        // credential this client understands.
+        credentials: 'omit',
         body: body === undefined ? undefined : JSON.stringify(body),
       });
     } catch (cause) {

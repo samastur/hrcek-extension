@@ -12,6 +12,9 @@ export const FAKE_USER: UserOut = { email: 'nina@example.com', display_name: nul
 
 const SESSION_ID = 'fake-session';
 const CSRF_TOKEN = 'fake-csrf';
+/** ApiToken.NAME_MAX_LENGTH on the real server. */
+const TOKEN_NAME_MAX_LENGTH = 50;
+export const MINTED_TOKEN_PREFIX = 'hrcek_minted_';
 
 /** A fresh Hrček account's default fields. */
 const ACCOUNT_FIELDS = [
@@ -62,6 +65,7 @@ function normalizeNumber(value: string): string {
 export async function startFakeHrcek(port = 0): Promise<FakeHrcek> {
   let entries = new Map<string, EntryOut>();
   let nextId = 1;
+  let nextTokenId = 1;
   let clock = 0;
 
   function timestamp(): string {
@@ -90,6 +94,8 @@ export async function startFakeHrcek(port = 0): Promise<FakeHrcek> {
   ): { status: number; body: ErrorBody } | null {
     const auth = req.headers.authorization ?? '';
     if (auth === `Bearer ${FAKE_TOKEN}`) return null;
+    // Tokens handed out by POST /api/auth/tokens work like any other.
+    if (auth.startsWith(`Bearer ${MINTED_TOKEN_PREFIX}`)) return null;
     const cookies = parseCookies(req);
     if (cookies['sessionid'] === SESSION_ID) {
       const unsafe = !['GET', 'HEAD', 'OPTIONS'].includes(req.method ?? 'GET');
@@ -208,6 +214,46 @@ export async function startFakeHrcek(port = 0): Promise<FakeHrcek> {
         return json(res, 200, FAKE_USER);
       }
 
+      // Credential-based token minting (samastur/hrcek#53). Deliberately
+      // anonymous: a bearer token may not mint another one.
+      if (route === 'POST /api/auth/tokens') {
+        if ((req.headers.authorization ?? '').startsWith('Bearer ')) {
+          return json(
+            res,
+            403,
+            errorBody(
+              'HRC-AUTH-0006',
+              'Creating a token needs a signed-in session, not another token.',
+            ),
+          );
+        }
+        const body = (await readBody(req)) as {
+          name?: string;
+          identifier?: string;
+          password?: string;
+        };
+        const name = (body.name ?? '').trim();
+        if (name === '' || name.length > TOKEN_NAME_MAX_LENGTH) {
+          return json(
+            res,
+            422,
+            errorBody('HRC-CORE-0002', 'The submitted data is not valid.', {
+              fields: { name: ['Give the token a name.'] },
+            }),
+          );
+        }
+        if (body.identifier !== FAKE_IDENTIFIER || body.password !== FAKE_PASSWORD) {
+          return json(res, 401, errorBody('HRC-AUTH-0001', 'Invalid credentials.'));
+        }
+        return json(res, 201, {
+          id: nextTokenId++,
+          name,
+          token: `${MINTED_TOKEN_PREFIX}${nextTokenId}`,
+          created_at: timestamp(),
+          expires_at: null,
+        });
+      }
+
       // GET / stands in for any page that makes Django set the CSRF cookie.
       if (route === 'GET /') {
         res.setHeader('Set-Cookie', [`csrftoken=${CSRF_TOKEN}; Path=/`]);
@@ -267,6 +313,7 @@ export async function startFakeHrcek(port = 0): Promise<FakeHrcek> {
           notes: body.notes ?? '',
           tags: [...(body.tags ?? [])].sort(),
           fields: applied.fields,
+          image: existing?.image ?? null,
           created_at: existing?.created_at ?? now,
           updated_at: now,
         };
@@ -292,6 +339,7 @@ export async function startFakeHrcek(port = 0): Promise<FakeHrcek> {
     reset() {
       entries = new Map();
       nextId = 1;
+      nextTokenId = 1;
     },
     close() {
       return new Promise((resolve, reject) =>

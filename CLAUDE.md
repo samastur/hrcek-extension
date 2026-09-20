@@ -58,8 +58,16 @@ Design spec: `docs/superpowers/specs/2026-09-16-hrcek-extension-design.md`.
 - The API token lives in `browser.storage.local` only — never
   `storage.sync` (unencrypted, replicated).
 - The password is NEVER persisted anywhere. It is used once for
-  `POST /api/auth/login`; the session cookie carries auth after that,
-  and the person is re-prompted when the session expires.
+  `POST /api/auth/tokens`, which returns a token; only the token is kept.
+- **Bearer tokens are the only credential.** Session authentication is
+  not an option for an extension: Django checks the `Origin` header
+  before the CSRF token, and `moz-extension://<uuid>` can never be a
+  trusted origin (the uuid differs per install). The client therefore
+  sends `credentials: 'omit'` everywhere and holds no `cookies`
+  permission. Do not reintroduce session auth.
+- Minting a token is deliberately anonymous — the server refuses to mint
+  one for a request that presents a token, so a leaked token cannot
+  issue its own replacement.
 - The manifest requires no host permissions; the configured server's
   origin is requested at runtime from the options page. Only the
   `--mode e2e` build adds localhost host permissions, for Playwright.

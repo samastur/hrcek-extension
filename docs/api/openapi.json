@@ -87,6 +87,17 @@
             ],
             "title": "Fields"
           },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          },
           "notes": {
             "default": "",
             "title": "Notes",
@@ -131,6 +142,16 @@
             "title": "Id",
             "type": "integer"
           },
+          "image": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImageOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "notes": {
             "title": "Notes",
             "type": "string"
@@ -163,6 +184,7 @@
           "notes",
           "tags",
           "fields",
+          "image",
           "created_at",
           "updated_at"
         ],
@@ -190,6 +212,26 @@
         },
         "required": ["status", "service", "version", "message"],
         "title": "HealthOut",
+        "type": "object"
+      },
+      "ImageOut": {
+        "description": "What a client needs to show the picture, and nothing more.\n\nNeither copy of the bytes appears here. The original is archival\nand never leaves the server; the display copy is fetched from\n`url`, which is access-controlled.",
+        "properties": {
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": ["url", "width", "height"],
+        "title": "ImageOut",
         "type": "object"
       },
       "Input": {
@@ -241,6 +283,67 @@
         },
         "required": ["items", "count"],
         "title": "PagedEntryOut",
+        "type": "object"
+      },
+      "TokenCreateIn": {
+        "description": "A name, and optionally a date it should stop working.",
+        "properties": {
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": ["name"],
+        "title": "TokenCreateIn",
+        "type": "object"
+      },
+      "TokenOut": {
+        "description": "The only time the raw token exists outside the client.\n\nOnly a hash is stored, so a client that loses this value has to\nmake another token; nobody can look it up, including whoever runs\nthis Hrček.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": ["id", "name", "token", "created_at", "expires_at"],
+        "title": "TokenOut",
         "type": "object"
       },
       "UserOut": {
@@ -361,6 +464,45 @@
           }
         ],
         "summary": "Me",
+        "tags": ["auth"]
+      }
+    },
+    "/api/auth/tokens": {
+      "post": {
+        "description": "Make a bearer token for a script or another client.\n\nSession-authenticated only. A token that could mint tokens would\nmake revoking a leaked one pointless: the holder would simply issue\na replacement, and the original could be revoked without ending\ntheir access.",
+        "operationId": "create_api_token",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenCreateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenOut"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "security": [
+          {
+            "ApiTokenAuth": []
+          },
+          {
+            "SessionAuth": []
+          }
+        ],
+        "summary": "Create Api Token",
         "tags": ["auth"]
       }
     },
@@ -549,6 +691,93 @@
           }
         ],
         "summary": "Get Entry By Url",
+        "tags": ["entries"]
+      }
+    },
+    "/api/entries/{pk}/image": {
+      "delete": {
+        "operationId": "delete_entry_image",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pk",
+            "required": true,
+            "schema": {
+              "title": "Pk",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "security": [
+          {
+            "ApiTokenAuth": []
+          },
+          {
+            "SessionAuth": []
+          }
+        ],
+        "summary": "Delete Entry Image",
+        "tags": ["entries"]
+      },
+      "post": {
+        "description": "Attach an uploaded picture, replacing any the entry had.\n\nMultipart rather than JSON: base64 in a body would inflate every\nupload by a third for no gain.",
+        "operationId": "upload_entry_image",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pk",
+            "required": true,
+            "schema": {
+              "title": "Pk",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "format": "binary",
+                    "title": "File",
+                    "type": "string"
+                  }
+                },
+                "required": ["file"],
+                "title": "FileParams",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryOut"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "ApiTokenAuth": []
+          },
+          {
+            "SessionAuth": []
+          }
+        ],
+        "summary": "Upload Entry Image",
         "tags": ["entries"]
       }
     },
