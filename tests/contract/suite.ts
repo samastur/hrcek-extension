@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { TokenAuth } from '../../src/lib/api/auth';
 import { HrcekClient } from '../../src/lib/api/client';
 import { loadExisting } from '../../src/lib/save';
 
@@ -10,15 +9,52 @@ export interface ContractTarget {
   runId: string;
 }
 
-export function runContractSuite(name: string, target: () => ContractTarget): void {
+/**
+ * Credentials for minting a token. Passed separately from the target
+ * factory because the skip decision is made while tests are collected,
+ * before any beforeAll hook has run.
+ */
+export interface ContractCredentials {
+  identifier: string;
+  password: string;
+}
+
+export function runContractSuite(
+  name: string,
+  target: () => ContractTarget,
+  credentials?: ContractCredentials,
+): void {
   describe(`Hrček API contract (${name})`, () => {
-    const client = () => new HrcekClient(target().baseUrl, new TokenAuth(target().token));
+    const client = () => new HrcekClient(target().baseUrl, target().token);
     const testUrl = (slug: string) =>
       `https://contract-tests.example.com/${target().runId}/${slug}`;
 
     it('reports health', async () => {
       expect((await client().health()).status).toBe('ok');
     });
+
+    // Needs samastur/hrcek#53 on the real server: until that lands,
+    // POST /api/auth/tokens requires a session and this run fails, which
+    // is the signal that the extension's flow is still blocked.
+    it.skipIf(credentials === undefined)(
+      'mints a working token from credentials, without expiry',
+      async () => {
+        const { identifier, password } = credentials!;
+        const name = `contract test ${target().runId.slice(0, 8)}`;
+
+        const created = await new HrcekClient(target().baseUrl, null).createToken(
+          name,
+          identifier,
+          password,
+        );
+
+        expect(created.name).toBe(name);
+        expect(created.expires_at).toBeNull();
+        // The point of the exercise: the new token authenticates.
+        const asNewToken = new HrcekClient(target().baseUrl, created.token);
+        expect((await asNewToken.me()).email).toContain('@');
+      },
+    );
 
     it('identifies the token owner', async () => {
       expect((await client().me()).email).toContain('@');

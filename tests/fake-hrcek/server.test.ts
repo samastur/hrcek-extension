@@ -158,3 +158,80 @@ describe('fake hrcek', () => {
     expect((await login.json()).error.code).toBe('HRC-AUTH-0001');
   });
 });
+
+describe('token minting', () => {
+  async function createToken(body: unknown, headers: Record<string, string> = {}) {
+    return fetch(`${fake.url}/api/auth/tokens`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify(body),
+    });
+  }
+
+  it('hands out a non-expiring token for good credentials', async () => {
+    const response = await createToken({
+      name: 'Hrček extension (Firefox on macOS)',
+      identifier: FAKE_IDENTIFIER,
+      password: FAKE_PASSWORD,
+    });
+
+    expect(response.status).toBe(201);
+    const body = await response.json();
+    expect(body.name).toBe('Hrček extension (Firefox on macOS)');
+    expect(body.expires_at).toBeNull();
+    expect(body.token).toContain('hrcek_');
+  });
+
+  it('issues a token that then authenticates ordinary calls', async () => {
+    const created = await (
+      await createToken({
+        name: 'client',
+        identifier: FAKE_IDENTIFIER,
+        password: FAKE_PASSWORD,
+      })
+    ).json();
+
+    const response = await fetch(`${fake.url}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${created.token}` },
+    });
+    expect(response.status).toBe(200);
+  });
+
+  it('refuses bad credentials with HRC-AUTH-0001', async () => {
+    const response = await createToken({
+      name: 'client',
+      identifier: FAKE_IDENTIFIER,
+      password: 'wrong',
+    });
+
+    expect(response.status).toBe(401);
+    expect((await response.json()).error.code).toBe('HRC-AUTH-0001');
+  });
+
+  it('refuses to mint a token for a request holding a token', async () => {
+    const response = await createToken(
+      { name: 'client', identifier: FAKE_IDENTIFIER, password: FAKE_PASSWORD },
+      { Authorization: `Bearer ${FAKE_TOKEN}` },
+    );
+
+    expect(response.status).toBe(403);
+    expect((await response.json()).error.code).toBe('HRC-AUTH-0006');
+  });
+
+  it('requires a name, and one the column can hold', async () => {
+    const blank = await createToken({
+      name: '  ',
+      identifier: FAKE_IDENTIFIER,
+      password: FAKE_PASSWORD,
+    });
+    expect(blank.status).toBe(422);
+    expect((await blank.json()).error.code).toBe('HRC-CORE-0002');
+
+    const tooLong = await createToken({
+      name: 'x'.repeat(51),
+      identifier: FAKE_IDENTIFIER,
+      password: FAKE_PASSWORD,
+    });
+    expect(tooLong.status).toBe(422);
+  });
+});

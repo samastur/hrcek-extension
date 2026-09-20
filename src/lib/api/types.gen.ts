@@ -55,6 +55,31 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/auth/tokens': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Create Api Token
+     * @description Make a bearer token for a script or another client.
+     *
+     *     Session-authenticated only. A token that could mint tokens would
+     *     make revoking a leaked one pointless: the holder would simply issue
+     *     a replacement, and the original could be revoked without ending
+     *     their access.
+     */
+    post: operations['create_api_token'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/entries/': {
     parameters: {
       query?: never;
@@ -113,6 +138,30 @@ export interface paths {
     put?: never;
     post?: never;
     delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/entries/{pk}/image': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Upload Entry Image
+     * @description Attach an uploaded picture, replacing any the entry had.
+     *
+     *     Multipart rather than JSON: base64 in a body would inflate every
+     *     upload by a third for no gain.
+     */
+    post: operations['upload_entry_image'];
+    /** Delete Entry Image */
+    delete: operations['delete_entry_image'];
     options?: never;
     head?: never;
     patch?: never;
@@ -183,6 +232,8 @@ export interface components {
       fields?: {
         [key: string]: unknown;
       } | null;
+      /** Image Url */
+      image_url?: string | null;
       /**
        * Notes
        * @default
@@ -211,6 +262,7 @@ export interface components {
       };
       /** Id */
       id: number;
+      image: components['schemas']['ImageOut'] | null;
       /** Notes */
       notes: string;
       /** Tags */
@@ -235,6 +287,22 @@ export interface components {
       status: string;
       /** Version */
       version: string;
+    };
+    /**
+     * ImageOut
+     * @description What a client needs to show the picture, and nothing more.
+     *
+     *     Neither copy of the bytes appears here. The original is archival
+     *     and never leaves the server; the display copy is fetched from
+     *     `url`, which is access-controlled.
+     */
+    ImageOut: {
+      /** Height */
+      height: number;
+      /** Url */
+      url: string;
+      /** Width */
+      width: number;
     };
     /** Input */
     Input: {
@@ -262,6 +330,39 @@ export interface components {
       count: number;
       /** Items */
       items: components['schemas']['EntryOut'][];
+    };
+    /**
+     * TokenCreateIn
+     * @description A name, and optionally a date it should stop working.
+     */
+    TokenCreateIn: {
+      /** Expires At */
+      expires_at?: string | null;
+      /** Name */
+      name: string;
+    };
+    /**
+     * TokenOut
+     * @description The only time the raw token exists outside the client.
+     *
+     *     Only a hash is stored, so a client that loses this value has to
+     *     make another token; nobody can look it up, including whoever runs
+     *     this Hrček.
+     */
+    TokenOut: {
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Expires At */
+      expires_at: string | null;
+      /** Id */
+      id: number;
+      /** Name */
+      name: string;
+      /** Token */
+      token: string;
     };
     /** UserOut */
     UserOut: {
@@ -337,6 +438,30 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['UserOut'];
+        };
+      };
+    };
+  };
+  create_api_token: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['TokenCreateIn'];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['TokenOut'];
         };
       };
     };
@@ -449,6 +574,58 @@ export interface operations {
         content: {
           'application/json': components['schemas']['EntryOut'];
         };
+      };
+    };
+  };
+  upload_entry_image: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        pk: number;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': {
+          /**
+           * File
+           * Format: binary
+           */
+          file: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['EntryOut'];
+        };
+      };
+    };
+  };
+  delete_entry_image: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        pk: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };
