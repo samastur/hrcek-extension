@@ -80,6 +80,37 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/auth/tokens/exchange': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Exchange Credentials For Token
+     * @description Trade an email address and password for a bearer token.
+     *
+     *     For clients that cannot hold a session. A browser extension is the
+     *     case: Firefox sends `Origin: moz-extension://<uuid>` on every
+     *     request, the uuid differs per install so it cannot be trusted in
+     *     advance, and Django refuses the origin before it reads anything
+     *     else — so an extension can sign in and then do nothing unsafe with
+     *     the session it got.
+     *
+     *     This route reads no session at all, which is also what makes it
+     *     safe without a CSRF check: there is no path through it that a
+     *     cookie alone can take. A signed-in browser gains nothing here.
+     */
+    post: operations['exchange_credentials_for_token'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/entries/': {
     parameters: {
       query?: never;
@@ -342,6 +373,23 @@ export interface components {
       name: string;
     };
     /**
+     * TokenExchangeIn
+     * @description Credentials traded for a token, for a client with no session.
+     *
+     *     `identifier` and `password` are the same pair `login` takes; the
+     *     name is the one the clients page will show beside the token.
+     */
+    TokenExchangeIn: {
+      /** Expires At */
+      expires_at?: string | null;
+      /** Identifier */
+      identifier: string;
+      /** Name */
+      name: string;
+      /** Password */
+      password: string;
+    };
+    /**
      * TokenOut
      * @description The only time the raw token exists outside the client.
      *
@@ -452,6 +500,30 @@ export interface operations {
     requestBody: {
       content: {
         'application/json': components['schemas']['TokenCreateIn'];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['TokenOut'];
+        };
+      };
+    };
+  };
+  exchange_credentials_for_token: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['TokenExchangeIn'];
       };
     };
     responses: {

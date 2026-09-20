@@ -50,13 +50,14 @@ function setStatus(kind: 'info' | 'success' | 'error', text: string): void {
 
 function messageFor(error: unknown): string {
   if (error instanceof HrcekApiError) {
-    // The server still requires a session here; an extension can never
-    // satisfy that, so say what to do instead of repeating its message.
-    if (error.code === 'HRC-AUTH-0005' || error.code === 'HRC-AUTH-0006') {
-      return 'This Hrček cannot make tokens for an extension yet. Create one on your clients page and paste it above.';
+    // Rate-limited, ten an hour by default. The throttle's reply is not
+    // the Hrček error envelope, so the status is all there is to go on.
+    if (error.status === 429) {
+      return 'Too many attempts. Wait a while before trying again, or paste a token from your clients page.';
     }
+    // An older Hrček has no exchange route; its 404 says nothing useful.
     if (error.status === 404) {
-      return 'This Hrček does not offer token creation. Create one on your clients page and paste it above.';
+      return 'This Hrček cannot make tokens for an extension. Create one on your clients page and paste it above.';
     }
     return error.message;
   }

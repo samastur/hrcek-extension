@@ -22,9 +22,12 @@ export class HrcekClient {
   }
 
   /**
-   * Trade credentials for a bearer token. Deliberately anonymous: the
-   * server refuses to mint a token for a request that presents one, so a
-   * token that leaked could not issue its own replacement.
+   * Trade credentials for a bearer token. This is the route for clients
+   * that cannot hold a session — an extension cannot, because Django
+   * rejects `moz-extension://` origins before reading anything else.
+   *
+   * Sent anonymously: the route reads no session and needs no token, and
+   * presenting one here would say nothing about who is asking.
    */
   async createToken(
     name: string,
@@ -34,7 +37,7 @@ export class HrcekClient {
     // No expires_at: the extension's token should keep working.
     const response = await this.request(
       'POST',
-      '/api/auth/tokens',
+      '/api/auth/tokens/exchange',
       { name, identifier, password },
       { anonymous: true },
     );

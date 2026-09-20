@@ -309,6 +309,38 @@
         "title": "TokenCreateIn",
         "type": "object"
       },
+      "TokenExchangeIn": {
+        "description": "Credentials traded for a token, for a client with no session.\n\n`identifier` and `password` are the same pair `login` takes; the\nname is the one the clients page will show beside the token.",
+        "properties": {
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "identifier": {
+            "title": "Identifier",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "password": {
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": ["name", "identifier", "password"],
+        "title": "TokenExchangeIn",
+        "type": "object"
+      },
       "TokenOut": {
         "description": "The only time the raw token exists outside the client.\n\nOnly a hash is stored, so a client that loses this value has to\nmake another token; nobody can look it up, including whoever runs\nthis Hrček.",
         "properties": {
@@ -503,6 +535,37 @@
           }
         ],
         "summary": "Create Api Token",
+        "tags": ["auth"]
+      }
+    },
+    "/api/auth/tokens/exchange": {
+      "post": {
+        "description": "Trade an email address and password for a bearer token.\n\nFor clients that cannot hold a session. A browser extension is the\ncase: Firefox sends `Origin: moz-extension://<uuid>` on every\nrequest, the uuid differs per install so it cannot be trusted in\nadvance, and Django refuses the origin before it reads anything\nelse — so an extension can sign in and then do nothing unsafe with\nthe session it got.\n\nThis route reads no session at all, which is also what makes it\nsafe without a CSRF check: there is no path through it that a\ncookie alone can take. A signed-in browser gains nothing here.",
+        "operationId": "exchange_credentials_for_token",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenExchangeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenOut"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "summary": "Exchange Credentials For Token",
         "tags": ["auth"]
       }
     },
