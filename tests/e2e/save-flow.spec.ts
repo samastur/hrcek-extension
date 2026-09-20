@@ -198,8 +198,8 @@ test('says what to do when the server cannot mint tokens', async ({
   extensionId,
 }) => {
   const options = await openOptions(context, extensionId);
-  // A Hrček without samastur/hrcek#53 answers 404 here.
-  await options.route(`${SERVER}/api/auth/tokens`, (route) =>
+  // An older Hrček, without the exchange route, answers 404 here.
+  await options.route(`${SERVER}/api/auth/tokens/exchange`, (route) =>
     route.fulfill({
       status: 404,
       contentType: 'application/json',

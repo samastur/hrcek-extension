@@ -161,7 +161,7 @@ describe('fake hrcek', () => {
 
 describe('token minting', () => {
   async function createToken(body: unknown, headers: Record<string, string> = {}) {
-    return fetch(`${fake.url}/api/auth/tokens`, {
+    return fetch(`${fake.url}/api/auth/tokens/exchange`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify(body),
@@ -208,14 +208,16 @@ describe('token minting', () => {
     expect((await response.json()).error.code).toBe('HRC-AUTH-0001');
   });
 
-  it('refuses to mint a token for a request holding a token', async () => {
+  it('ignores an Authorization header — the route reads credentials only', async () => {
+    // auth=None on the real route: a token riding along says nothing
+    // about who is asking, and must not change the answer either way.
     const response = await createToken(
       { name: 'client', identifier: FAKE_IDENTIFIER, password: FAKE_PASSWORD },
       { Authorization: `Bearer ${FAKE_TOKEN}` },
     );
 
-    expect(response.status).toBe(403);
-    expect((await response.json()).error.code).toBe('HRC-AUTH-0006');
+    expect(response.status).toBe(201);
+    expect((await response.json()).token).toContain('hrcek_');
   });
 
   it('requires a name, and one the column can hold', async () => {

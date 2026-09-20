@@ -214,19 +214,10 @@ export async function startFakeHrcek(port = 0): Promise<FakeHrcek> {
         return json(res, 200, FAKE_USER);
       }
 
-      // Credential-based token minting (samastur/hrcek#53). Deliberately
-      // anonymous: a bearer token may not mint another one.
-      if (route === 'POST /api/auth/tokens') {
-        if ((req.headers.authorization ?? '').startsWith('Bearer ')) {
-          return json(
-            res,
-            403,
-            errorBody(
-              'HRC-AUTH-0006',
-              'Creating a token needs a signed-in session, not another token.',
-            ),
-          );
-        }
+      // Credentials traded for a token, for clients that cannot hold a
+      // session. The real route is declared auth=None, so it reads no
+      // session and ignores any Authorization header it is handed.
+      if (route === 'POST /api/auth/tokens/exchange') {
         const body = (await readBody(req)) as {
           name?: string;
           identifier?: string;

@@ -141,7 +141,7 @@ describe('createToken', () => {
 
   it('posts the name and credentials, and omits expires_at so the token lasts', async () => {
     server.use(
-      http.post(`${BASE}/api/auth/tokens`, async ({ request }) => {
+      http.post(`${BASE}/api/auth/tokens/exchange`, async ({ request }) => {
         expect(await request.json()).toEqual({
           name: 'Hrček extension (Firefox on macOS)',
           identifier: 'nina@example.com',
@@ -162,20 +162,39 @@ describe('createToken', () => {
 
   it('sends no Authorization header — minting is credential-based, not token-based', async () => {
     server.use(
-      http.post(`${BASE}/api/auth/tokens`, ({ request }) => {
+      http.post(`${BASE}/api/auth/tokens/exchange`, ({ request }) => {
         expect(request.headers.get('Authorization')).toBeNull();
         return HttpResponse.json(CREATED, { status: 201 });
       }),
     );
 
-    // Even when a stale token is configured, it must not be presented here:
-    // the server refuses token-minted-by-token with HRC-AUTH-0006.
+    // The route reads no session and needs no token. A stale or revoked
+    // token in settings must not ride along and colour the answer.
     await new HrcekClient(BASE, 'hrcek_stale').createToken('n', 'nina@example.com', 'p');
+  });
+
+  it('keeps the status when the throttle answers outside the error envelope', async () => {
+    // The route is rate-limited (ten an hour by default) and ninja's
+    // throttle reply is not the Hrček envelope, so only the status is
+    // dependable — the UI branches on it.
+    server.use(
+      http.post(`${BASE}/api/auth/tokens/exchange`, () =>
+        HttpResponse.json({ detail: 'Too many requests.' }, { status: 429 }),
+      ),
+    );
+
+    const error = await new HrcekClient(BASE, null)
+      .createToken('n', 'nina@example.com', 'p')
+      .then(
+        () => null,
+        (e: unknown) => e,
+      );
+    expect((error as HrcekApiError).status).toBe(429);
   });
 
   it('surfaces bad credentials as HRC-AUTH-0001', async () => {
     server.use(
-      http.post(`${BASE}/api/auth/tokens`, () =>
+      http.post(`${BASE}/api/auth/tokens/exchange`, () =>
         HttpResponse.json(
           {
             error: {
