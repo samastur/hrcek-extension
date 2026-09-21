@@ -8,18 +8,24 @@ import './style.css';
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
 app.innerHTML = `
-  <h1>Hrček settings</h1>
+  <div class="hrcek-header">
+    <img src="/icon/32.png" alt="" />
+    <span class="name">Hrček</span>
+  </div>
+  <h1>Settings</h1>
   <form id="settings-form">
-    <label>Server address
+    <div class="field">
+      <label for="server-url">Server address</label>
       <input id="server-url" type="url" placeholder="https://hrcek.example.com" required />
-    </label>
-    <label>API token
+    </div>
+    <div class="field">
+      <label for="token">API token</label>
       <input id="token" type="password" placeholder="hrcek_…" autocomplete="off" />
-    </label>
+    </div>
     <p>Paste one from <a id="account-link" href="#" target="_blank">your clients page</a>,
        or let Hrček make one below.</p>
     <button type="submit" id="save">Save</button>
-    <button type="button" id="test">Test connection</button>
+    <button type="button" class="quiet" id="test">Test connection</button>
     <p id="status" data-kind="info"></p>
   </form>
 
@@ -28,10 +34,14 @@ app.innerHTML = `
     <p>Your password is used once to ask Hrček for a token, and is never
        stored. The token appears above and is what the extension uses from
        then on.</p>
-    <label>Email or display name <input id="identifier" autocomplete="username" /></label>
-    <label>Password
+    <div class="field">
+      <label for="identifier">Email or display name</label>
+      <input id="identifier" autocomplete="username" />
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
       <input id="password" type="password" autocomplete="current-password" />
-    </label>
+    </div>
     <button type="button" id="create">Create token</button>
   </details>
 `;
