@@ -55,6 +55,17 @@ export function buildFieldInputs(
  */
 export function fieldsForRequest(inputs: FieldInput[]): Record<string, string> {
   const fields: Record<string, string> = {};
-  for (const input of inputs) fields[input.name] = input.value.trim();
+  for (const input of inputs) {
+    const value = input.value.trim();
+    // A choice value the field no longer offers cannot be saved — the
+    // server refuses it — and sending it as "" would silently destroy it.
+    // `fields` is patched, so omitting the name leaves the stored value
+    // exactly as it was. An empty value is NOT skipped: that is a clear,
+    // and clearing must keep working.
+    if (input.kind === 'choice' && value !== '' && !input.options.includes(value)) {
+      continue;
+    }
+    fields[input.name] = value;
+  }
   return fields;
 }

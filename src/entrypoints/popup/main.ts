@@ -54,13 +54,22 @@ function messageFor(error: unknown): string {
 function fieldControl(input: FieldInput): string {
   const id = `field-${encodeURIComponent(input.name)}`;
   if (input.kind === 'choice') {
-    const options = ['', ...input.options]
-      .map(
-        (option) =>
-          `<option value="${escapeAttribute(option)}"${option === input.value ? ' selected' : ''}>${
-            option === '' ? '—' : escapeText(option)
-          }</option>`,
-      )
+    // The stored value can outlive the option that produced it — the
+    // account's options can change after an entry was saved. Hiding it
+    // would mean Save silently clears it, so show it, clearly marked as no
+    // longer offered, rather than pretending the field is empty.
+    const isOrphan = input.value !== '' && !input.options.includes(input.value);
+    const values = isOrphan ? [...input.options, input.value] : input.options;
+    const options = ['', ...values]
+      .map((option) => {
+        const label =
+          option === ''
+            ? '—'
+            : option === input.value && isOrphan
+              ? `${escapeText(option)} (no longer offered)`
+              : escapeText(option);
+        return `<option value="${escapeAttribute(option)}"${option === input.value ? ' selected' : ''}>${label}</option>`;
+      })
       .join('');
     return `<select id="${id}" data-field="${escapeAttribute(input.name)}">${options}</select>`;
   }
@@ -148,6 +157,9 @@ function collectForm(): FormState {
     title: document.querySelector<HTMLInputElement>('#title')!.value,
     notes: document.querySelector<HTMLTextAreaElement>('#notes')!.value,
     tags: document.querySelector<HTMLInputElement>('#tags')!.value,
+    // The `!` here relies on fieldsMarkup and this query iterating the same
+    // rendered set — every [data-field] control on the page came from
+    // renderedFields, so the name is always found.
     fields: [
       ...document.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-field]'),
     ].map((control) => {

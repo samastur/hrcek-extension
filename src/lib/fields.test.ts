@@ -64,4 +64,30 @@ describe('fieldsForRequest', () => {
       fieldsForRequest([{ name: 'Price', kind: 'number', options: [], value: '   ' }]),
     ).toEqual({ Price: '' });
   });
+
+  it('omits a choice value the field no longer offers, rather than clearing it', () => {
+    // The options changed server-side after the entry was saved. Sending
+    // "" would destroy the stored value; omitting the name leaves it as is.
+    expect(
+      fieldsForRequest([
+        { name: 'Priority', kind: 'choice', options: ['low', 'medium'], value: 'high' },
+      ]),
+    ).toEqual({});
+  });
+
+  it('still clears a choice value when it is emptied, even though the guard exists', () => {
+    expect(
+      fieldsForRequest([
+        { name: 'Priority', kind: 'choice', options: ['high'], value: '' },
+      ]),
+    ).toEqual({ Priority: '' });
+  });
+
+  it('still sends a choice value that is among its options', () => {
+    expect(
+      fieldsForRequest([
+        { name: 'Priority', kind: 'choice', options: ['high', 'low'], value: 'high' },
+      ]),
+    ).toEqual({ Priority: 'high' });
+  });
 });
