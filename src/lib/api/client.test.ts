@@ -128,6 +128,49 @@ describe('HrcekClient', () => {
       );
     expect(error).toBeInstanceOf(HrcekNetworkError);
   });
+
+  it('listFields() returns the page items', async () => {
+    server.use(
+      http.get(`${BASE}/api/fields/`, () =>
+        HttpResponse.json({
+          items: [
+            { name: 'Price', kind: 'number', options: [] },
+            { name: 'Priority', kind: 'choice', options: ['high', 'medium', 'low'] },
+          ],
+          count: 2,
+        }),
+      ),
+    );
+
+    const fields = await client().listFields();
+    expect(fields.map((f) => f.name)).toEqual(['Price', 'Priority']);
+    expect(fields[1]!.options).toEqual(['high', 'medium', 'low']);
+  });
+
+  it('listLabels() passes starts_with through as a literal', async () => {
+    server.use(
+      http.get(`${BASE}/api/labels/`, ({ request }) => {
+        // A literal, not a pattern: punctuation somebody typed means itself.
+        expect(new URL(request.url).searchParams.get('starts_with')).toBe('c++');
+        return HttpResponse.json({ items: [{ name: 'c++' }], count: 1 });
+      }),
+    );
+
+    expect(await client().listLabels({ startsWith: 'c++' })).toEqual([{ name: 'c++' }]);
+  });
+
+  it('listLabels() sends no empty parameters when asked plainly', async () => {
+    server.use(
+      http.get(`${BASE}/api/labels/`, ({ request }) => {
+        const query = new URL(request.url).searchParams;
+        expect(query.has('starts_with')).toBe(false);
+        expect(query.has('after')).toBe(false);
+        return HttpResponse.json({ items: [], count: 0 });
+      }),
+    );
+
+    expect(await client().listLabels()).toEqual([]);
+  });
 });
 
 describe('createToken', () => {

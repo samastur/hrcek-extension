@@ -1,5 +1,15 @@
 import { errorFromResponse, HrcekNetworkError } from './errors';
-import type { EntryIn, EntryOut, HealthOut, TokenOut, UserOut } from './types';
+import type {
+  EntryIn,
+  EntryOut,
+  FieldOut,
+  HealthOut,
+  LabelOut,
+  PagedFieldOut,
+  PagedLabelOut,
+  TokenOut,
+  UserOut,
+} from './types';
 
 export type SaveResult = { status: 'created' | 'updated'; entry: EntryOut };
 
@@ -47,6 +57,38 @@ export class HrcekClient {
   async getEntryByUrl(url: string): Promise<EntryOut> {
     const query = new URLSearchParams({ url });
     return (await this.request('GET', `/api/entries/by-url/?${query}`)).json();
+  }
+
+  /**
+   * The fields this account's entries may carry. `name` is the key an
+   * entry's `fields` object uses, so what is read here is what gets
+   * written back — never hard-code these.
+   */
+  async listFields(): Promise<FieldOut[]> {
+    const page = (await (
+      await this.request('GET', '/api/fields/')
+    ).json()) as PagedFieldOut;
+    return page.items;
+  }
+
+  /**
+   * This account's labels, alphabetically. `startsWith` narrows them and
+   * is matched as a literal; `after` is a cursor, not an offset — pass
+   * the last name served to get the next page.
+   */
+  async listLabels(
+    options: { startsWith?: string; after?: string } = {},
+  ): Promise<LabelOut[]> {
+    const query = new URLSearchParams();
+    // Sent only when they say something. The server defaults both to "",
+    // so an empty parameter is noise on every keystroke.
+    if (options.startsWith) query.set('starts_with', options.startsWith);
+    if (options.after) query.set('after', options.after);
+    const suffix = query.size > 0 ? `?${query}` : '';
+    const page = (await (
+      await this.request('GET', `/api/labels/${suffix}`)
+    ).json()) as PagedLabelOut;
+    return page.items;
   }
 
   /** Upsert. 201 → created, 200 → updated (replace-except-fields semantics). */
