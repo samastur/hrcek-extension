@@ -16,8 +16,12 @@ describe('buildFieldInputs', () => {
   });
 
   it('matches the entry value without regard to case, as the server does', () => {
+    // The lookup ignores case, but the name written back is the owner's
+    // spelling from the definition — never the entry's key. Sending the
+    // wrong spelling risks the server not recognising it as the same field.
     const [price] = buildFieldInputs(DEFINITIONS, { price: '129' });
     expect(price!.value).toBe('129');
+    expect(price!.name).toBe('Price');
   });
 
   it('falls back to the entry’s own keys when the definitions could not be read', () => {
@@ -51,5 +55,13 @@ describe('fieldsForRequest', () => {
     expect(
       fieldsForRequest([{ name: 'Price', kind: 'number', options: [], value: ' 129 ' }]),
     ).toEqual({ Price: '129' });
+  });
+
+  it('treats a whitespace-only value as a clear, not a stored blank', () => {
+    // "" is how the API clears a field; a value of spaces means the person
+    // emptied the input, not that they meant to store spaces.
+    expect(
+      fieldsForRequest([{ name: 'Price', kind: 'number', options: [], value: '   ' }]),
+    ).toEqual({ Price: '' });
   });
 });
