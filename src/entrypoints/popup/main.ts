@@ -59,6 +59,10 @@ function fieldRow(name: string, value: string): HTMLDivElement {
 
 function renderUnconfigured(): void {
   app.innerHTML = `
+    <div class="hrcek-header">
+      <img src="/icon/32.png" alt="" />
+      <span class="name">Hrček</span>
+    </div>
     <p>Hrček is not configured yet.</p>
     <button id="open-options">Open settings</button>
   `;
@@ -69,19 +73,25 @@ function renderUnconfigured(): void {
 
 function renderForm(form: FormState, existing: boolean): void {
   app.innerHTML = `
+    <div class="hrcek-header">
+      <img src="/icon/32.png" alt="" />
+      <span class="name">Hrček</span>
+      ${existing ? '<span class="aside">Already saved</span>' : ''}
+    </div>
+    <span class="address" id="address" title=""></span>
     <form id="entry-form">
-      ${existing ? '<p id="existing-note">Already saved — editing the existing entry.</p>' : ''}
-      <label>Address <input id="url" required /></label>
-      <label>Title <input id="title" /></label>
-      <label>Notes <textarea id="notes" rows="3"></textarea></label>
-      <label>Tags <input id="tags" placeholder="comma, separated" /></label>
+      <div class="field"><label for="title">Title</label><input id="title" /></div>
+      <div class="field"><label for="notes">Notes</label><textarea id="notes" rows="3"></textarea></div>
+      <div class="field"><label for="tags">Tags</label><input id="tags" placeholder="comma, separated" /></div>
       <div id="fields"></div>
-      <button type="button" id="add-field">Add field</button>
-      <button type="submit" id="save">Save</button>
+      <button type="button" class="quiet" id="add-field">Add field</button>
+      <button type="submit" id="save">${existing ? 'Update' : 'Save'}</button>
       <p id="status" data-kind="info"></p>
     </form>
   `;
-  document.querySelector<HTMLInputElement>('#url')!.value = form.url;
+  const address = document.querySelector<HTMLSpanElement>('#address')!;
+  address.textContent = form.url;
+  address.title = form.url;
   document.querySelector<HTMLInputElement>('#title')!.value = form.title;
   document.querySelector<HTMLTextAreaElement>('#notes')!.value = form.notes;
   document.querySelector<HTMLInputElement>('#tags')!.value = form.tags;
@@ -104,7 +114,8 @@ function renderForm(form: FormState, existing: boolean): void {
 
 function collectForm(): FormState {
   return {
-    url: document.querySelector<HTMLInputElement>('#url')!.value,
+    // Not editable, so it is carried rather than read back from an input.
+    url: pageUrl,
     title: document.querySelector<HTMLInputElement>('#title')!.value,
     notes: document.querySelector<HTMLTextAreaElement>('#notes')!.value,
     tags: document.querySelector<HTMLInputElement>('#tags')!.value,

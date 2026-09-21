@@ -1,0 +1,164 @@
+/* The website's design tokens, copied from hrcek.css. Restyling starts
+   and usually ends here. Each colour has a light and a dark variant; the
+   dark block overrides the same properties, so both themes follow the
+   system without any per-element dark styling. */
+
+:root {
+  color-scheme: light dark;
+
+  --surface: #faf8f5;
+  --raised: #ffffff;
+  --edge: #e4dfd5;
+  --ink: #292521;
+  --muted: #6e6659;
+  --accent: #8a4c22;
+  --accent-ink: #ffffff;
+  --danger: #b3261c;
+  --danger-ink: #ffffff;
+
+  --radius: 0.4375rem;
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+
+  accent-color: var(--accent);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #171512;
+    --raised: #211e1a;
+    --edge: #3b352c;
+    --ink: #e9e4dc;
+    --muted: #a49b8c;
+    --accent: #d9986a;
+    --accent-ink: #2b1607;
+    --danger: #ef8983;
+    --danger-ink: #2b0f0d;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+}
+
+/* The site's header: the hamster, then the name. */
+.hrcek-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.hrcek-header img {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.hrcek-header .name {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+/* Anything after the name is pushed to the far end — the "already saved"
+   note today, and whatever else earns a place there later. */
+.hrcek-header .aside {
+  margin-left: auto;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+  border: 1px solid var(--edge);
+  border-radius: 99px;
+  padding: 0.05rem 0.5rem;
+  background: var(--raised);
+}
+
+label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-bottom: 0.2rem;
+}
+
+input:not([type='checkbox']),
+textarea,
+select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.4rem 0.5rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  background: var(--raised);
+  color: var(--ink);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+button {
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border: 0;
+  border-radius: var(--radius);
+  padding: 0.45rem 0.9rem;
+  cursor: pointer;
+}
+button:hover {
+  background: color-mix(in oklab, var(--accent) 88%, var(--ink));
+}
+/* A button that should not look like the main action. */
+button.quiet {
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--edge);
+  font-weight: 400;
+}
+button.quiet:hover {
+  background: var(--raised);
+  color: var(--ink);
+}
+
+details {
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  background: var(--raised);
+  padding: 0.4rem 0.55rem;
+}
+summary {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--accent) 40%, transparent);
+  text-underline-offset: 3px;
+}
+a:hover {
+  text-decoration-color: var(--accent);
+}
+
+#status {
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+#status[data-kind='error'] {
+  color: var(--danger);
+}
+#status[data-kind='success'] {
+  color: var(--accent);
+}
