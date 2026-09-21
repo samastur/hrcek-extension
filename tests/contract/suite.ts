@@ -156,8 +156,13 @@ export function runContractSuite(
       const tag = `contract-${target().runId.slice(0, 8)}`;
       await client().saveEntry({ url: testUrl('labels'), tags: [tag] });
 
+      // A plain call returns the first page, up to a thousand labels. On an
+      // account near that ceiling a brand-new tag need not be on it, so the
+      // unbounded call is checked for shape only — the narrowed call below
+      // is what proves the tag is really there, and its prefix is unique to
+      // this run.
       const all = await client().listLabels();
-      expect(all.map((label) => label.name)).toContain(tag);
+      for (const label of all) expect(typeof label.name).toBe('string');
 
       const narrowed = await client().listLabels({ startsWith: tag.slice(0, 12) });
       expect(narrowed.map((label) => label.name)).toContain(tag);
