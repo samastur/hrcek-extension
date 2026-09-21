@@ -191,6 +191,29 @@
         "title": "EntryOut",
         "type": "object"
       },
+      "FieldOut": {
+        "description": "One of the fields this account's entries may carry.\n\n`name` is the key: it is what an entry's `fields` object uses, so a\nclient writes back what it read here. `options` is empty except\nfor a choice field, where it is the only way to know what the\nchoices are.",
+        "properties": {
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Options",
+            "type": "array"
+          }
+        },
+        "required": ["name", "kind", "options"],
+        "title": "FieldOut",
+        "type": "object"
+      },
       "HealthOut": {
         "properties": {
           "message": {
@@ -236,20 +259,32 @@
       },
       "Input": {
         "properties": {
+          "after": {
+            "default": "",
+            "title": "After",
+            "type": "string"
+          },
           "limit": {
-            "default": 100,
+            "default": 1000,
+            "maximum": 1000,
             "minimum": 1,
             "title": "Limit",
-            "type": "integer"
-          },
-          "offset": {
-            "default": 0,
-            "minimum": 0,
-            "title": "Offset",
             "type": "integer"
           }
         },
         "title": "Input",
+        "type": "object"
+      },
+      "LabelOut": {
+        "description": "A label already in use on this account's entries.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": ["name"],
+        "title": "LabelOut",
         "type": "object"
       },
       "LoginIn": {
@@ -283,6 +318,42 @@
         },
         "required": ["items", "count"],
         "title": "PagedEntryOut",
+        "type": "object"
+      },
+      "PagedFieldOut": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FieldOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": ["items", "count"],
+        "title": "PagedFieldOut",
+        "type": "object"
+      },
+      "PagedLabelOut": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LabelOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": ["items", "count"],
+        "title": "PagedLabelOut",
         "type": "object"
       },
       "TokenCreateIn": {
@@ -844,6 +915,58 @@
         "tags": ["entries"]
       }
     },
+    "/api/fields/": {
+      "get": {
+        "description": "The fields this account's entries may carry.\n\nA client reads these to build its own inputs: the kind says what\nsort of value is wanted, and a choice field's options say what the\nchoices are.",
+        "operationId": "list_fields",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedFieldOut"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "ApiTokenAuth": []
+          },
+          {
+            "SessionAuth": []
+          }
+        ],
+        "summary": "List Fields",
+        "tags": ["fields"]
+      }
+    },
     "/api/health": {
       "get": {
         "description": "Report that the service is up, in the caller's language.",
@@ -863,6 +986,68 @@
         },
         "summary": "Health",
         "tags": ["core"]
+      }
+    },
+    "/api/labels/": {
+      "get": {
+        "description": "This account's labels, optionally those beginning with a string.\n\nThe same endpoint serves a full list and an autocomplete, because\nthey differ only by a filter. `count` is how many labels match,\nnot how many this page carries, so a client knows whether to ask\nfor more.",
+        "operationId": "list_labels",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "starts_with",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Starts With",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 1000,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "After",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedLabelOut"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "ApiTokenAuth": []
+          },
+          {
+            "SessionAuth": []
+          }
+        ],
+        "summary": "List Labels",
+        "tags": ["labels"]
       }
     }
   },
