@@ -125,6 +125,56 @@ test('offers the account’s own fields and saves a choice', async ({
   await expect(reopened.locator('[data-field="Priority"]')).toHaveValue('high');
 });
 
+test('preserves a choice value the account no longer offers', async ({
+  context,
+  extensionId,
+}) => {
+  await configureToken(context, extensionId);
+  const url = 'https://example.com/orphan';
+
+  // Save an entry with Priority set to a value that is still offered here.
+  const setup = await openPopup(context, extensionId, url, 'Orphan');
+  await setup.locator('#fields').click();
+  await setup.locator('[data-field="Priority"]').selectOption('high');
+  await setup.click('#save');
+  await expect(setup.locator('#status')).toContainText('Saved.');
+  await setup.close();
+
+  // The account's options changed since: 'high' is no longer offered.
+  const popup = await context.newPage();
+  await popup.route('**/api/fields/**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        items: [
+          { name: 'Price', kind: 'number', options: [] },
+          { name: 'Priority', kind: 'choice', options: ['medium', 'low'] },
+        ],
+        count: 2,
+      }),
+    });
+  });
+  const query = new URLSearchParams({ url, title: 'ignored' });
+  await popup.goto(`chrome-extension://${extensionId}/popup.html?${query}`);
+
+  await popup.locator('#fields').click();
+  const priority = popup.locator('[data-field="Priority"]');
+  await expect(priority).toHaveValue('high');
+  await expect(priority.locator('option[value="high"]')).toHaveText(/no longer offered/);
+
+  // Saving without touching Priority must not clear it.
+  await popup.fill('#title', 'Orphan, revisited');
+  await popup.click('#save');
+  await expect(popup.locator('#status')).toContainText('Updated.');
+
+  // Reopen normally — the account's real options are back, and the value
+  // the popup never touched came through the save untouched.
+  const reopened = await openPopup(context, extensionId, url, 'ignored');
+  await reopened.locator('#fields').click();
+  await expect(reopened.locator('[data-field="Priority"]')).toHaveValue('high');
+});
+
 test('a failed initial lookup does not let Save blind-replace an existing entry', async ({
   context,
   extensionId,
