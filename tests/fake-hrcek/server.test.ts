@@ -237,3 +237,52 @@ describe('token minting', () => {
     expect(tooLong.status).toBe(422);
   });
 });
+
+describe('fields and labels', () => {
+  it('serves the account fields with their kinds and options', async () => {
+    const response = await fetch(`${fake.url}/api/fields/`, { headers: AUTH });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      items: [
+        { name: 'Price', kind: 'number', options: [] },
+        { name: 'Priority', kind: 'choice', options: ['high', 'medium', 'low'] },
+      ],
+      count: 2,
+    });
+  });
+
+  it('lists only labels that some entry carries, ignoring capitals in the order', async () => {
+    await post({ url: 'https://example.com/a', tags: ['Watches', 'diving'] });
+    await post({ url: 'https://example.com/b', tags: ['aviation'] });
+
+    const response = await fetch(`${fake.url}/api/labels/`, { headers: AUTH });
+    expect(await response.json()).toEqual({
+      items: [{ name: 'aviation' }, { name: 'diving' }, { name: 'Watches' }],
+      count: 3,
+    });
+  });
+
+  it('narrows by starts_with as a literal, and pages by after', async () => {
+    await post({ url: 'https://example.com/c', tags: ['watches', 'water', 'wave'] });
+
+    const narrowed = await fetch(`${fake.url}/api/labels/?starts_with=wat`, {
+      headers: AUTH,
+    });
+    expect(await narrowed.json()).toEqual({
+      items: [{ name: 'watches' }, { name: 'water' }],
+      count: 2,
+    });
+
+    const paged = await fetch(`${fake.url}/api/labels/?starts_with=wat&after=watches`, {
+      headers: AUTH,
+    });
+    // count is how many match, not how many this page carries.
+    expect(await paged.json()).toEqual({ items: [{ name: 'water' }], count: 2 });
+  });
+
+  it('refuses a limit above a thousand rather than truncating silently', async () => {
+    const response = await fetch(`${fake.url}/api/labels/?limit=5000`, { headers: AUTH });
+    expect(response.status).toBe(422);
+    expect((await response.json()).error.code).toBe('HRC-CORE-0002');
+  });
+});

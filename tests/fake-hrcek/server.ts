@@ -15,11 +15,17 @@ const CSRF_TOKEN = 'fake-csrf';
 /** ApiToken.NAME_MAX_LENGTH on the real server. */
 const TOKEN_NAME_MAX_LENGTH = 50;
 export const MINTED_TOKEN_PREFIX = 'hrcek_minted_';
+/** Both the default and the maximum, as the real server publishes it. */
+const LABELS_PER_PAGE = 1000;
 
-/** A fresh Hrček account's default fields. */
+/** A fresh Hrček account's default fields, in the shape GET /api/fields/ serves. */
 const ACCOUNT_FIELDS = [
-  { name: 'Price', kind: 'number' as const },
-  { name: 'Priority', kind: 'choice' as const, choices: ['high', 'medium', 'low'] },
+  { name: 'Price', kind: 'number' as const, options: [] as string[] },
+  {
+    name: 'Priority',
+    kind: 'choice' as const,
+    options: ['high', 'medium', 'low'],
+  },
 ];
 
 export interface FakeHrcek {
@@ -159,13 +165,13 @@ export async function startFakeHrcek(port = 0): Promise<FakeHrcek> {
           }),
         };
       }
-      if (definition.kind === 'choice' && !definition.choices.includes(value)) {
+      if (definition.kind === 'choice' && !definition.options.includes(value)) {
         return {
           status: 422,
           body: errorBody('HRC-CORE-0002', 'The submitted data is not valid.', {
             fields: {
               [definition.name]: [
-                `This field must be one of: ${definition.choices.join(', ')}.`,
+                `This field must be one of: ${definition.options.join(', ')}.`,
               ],
             },
           }),
@@ -272,6 +278,52 @@ export async function startFakeHrcek(port = 0): Promise<FakeHrcek> {
           );
         }
         return json(res, 200, entry);
+      }
+
+      if (route === 'GET /api/fields/') {
+        return json(res, 200, {
+          items: ACCOUNT_FIELDS,
+          count: ACCOUNT_FIELDS.length,
+        });
+      }
+
+      if (route === 'GET /api/labels/') {
+        const limit = Number(requestUrl.searchParams.get('limit') ?? LABELS_PER_PAGE);
+        if (!Number.isInteger(limit) || limit < 1 || limit > LABELS_PER_PAGE) {
+          return json(
+            res,
+            422,
+            errorBody('HRC-CORE-0002', 'The submitted data is not valid.', {
+              fields: {
+                limit: [`Ensure this value is less than or equal to ${LABELS_PER_PAGE}.`],
+              },
+            }),
+          );
+        }
+        // Only labels some entry carries: the real server deletes a tag
+        // when the last entry using it lets go.
+        const names = new Set<string>();
+        for (const entry of entries.values())
+          for (const tag of entry.tags) names.add(tag);
+
+        const prefix = (requestUrl.searchParams.get('starts_with') ?? '')
+          .trim()
+          .toLowerCase();
+        const after = (requestUrl.searchParams.get('after') ?? '').trim().toLowerCase();
+        // Ordering and cursor both use the lowercased name so they agree
+        // exactly; two labels cannot differ only by case, so no ties.
+        const matching = [...names]
+          .filter((name) => name.toLowerCase().startsWith(prefix))
+          .sort((a, b) => (a.toLowerCase() < b.toLowerCase() ? -1 : 1));
+        const page = matching
+          .filter((name) => name.toLowerCase() > after)
+          .slice(0, limit);
+
+        return json(res, 200, {
+          items: page.map((name) => ({ name })),
+          // How many match, not how many this page carries.
+          count: matching.length,
+        });
       }
 
       if (route === 'POST /api/entries/') {
