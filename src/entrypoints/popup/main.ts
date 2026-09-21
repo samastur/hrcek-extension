@@ -6,6 +6,8 @@ import { loadExisting, submitSave } from '../../lib/save';
 import { loadSettings } from '../../lib/settings';
 import { emptyForm, entryToForm, formToSaveRequest, type FormState } from './form';
 import type { Settings } from '../../lib/settings';
+import type { FieldInput } from '../../lib/fields';
+import type { FieldOut } from '../../lib/api/types';
 import './style.css';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
@@ -15,6 +17,10 @@ let client: HrcekClient | null = null;
 /** True when the initial look-before-write failed for a reason other than "not held". */
 let lookupFailed = false;
 let pageUrl = '';
+/** What the <details> actually showed. Only these are ever sent back. */
+let renderedFields: FieldInput[] = [];
+/** Loaded once in main(); null when GET /api/fields/ could not be read. */
+let definitions: FieldOut[] | null = null;
 
 async function getPageInfo(): Promise<{ url: string; title: string }> {
   // e2e builds only: Playwright opens the popup as an ordinary tab, which
@@ -45,16 +51,47 @@ function messageFor(error: unknown): string {
   return 'Something went wrong.';
 }
 
-function fieldRow(name: string, value: string): HTMLDivElement {
-  const row = document.createElement('div');
-  row.className = 'field-row';
-  row.innerHTML = `
-    <input class="field-name" placeholder="Field" />
-    <input class="field-value" placeholder="Value" />
-  `;
-  row.querySelector<HTMLInputElement>('.field-name')!.value = name;
-  row.querySelector<HTMLInputElement>('.field-value')!.value = value;
-  return row;
+function fieldControl(input: FieldInput): string {
+  const id = `field-${encodeURIComponent(input.name)}`;
+  if (input.kind === 'choice') {
+    const options = ['', ...input.options]
+      .map(
+        (option) =>
+          `<option value="${escapeAttribute(option)}"${option === input.value ? ' selected' : ''}>${
+            option === '' ? '—' : escapeText(option)
+          }</option>`,
+      )
+      .join('');
+    return `<select id="${id}" data-field="${escapeAttribute(input.name)}">${options}</select>`;
+  }
+  // A number field still takes a string: values come back as strings
+  // always, and the server does the validating.
+  const mode = input.kind === 'number' ? ' inputmode="decimal"' : '';
+  return `<input id="${id}" data-field="${escapeAttribute(input.name)}"${mode} value="${escapeAttribute(input.value)}" />`;
+}
+
+function escapeText(value: string): string {
+  const node = document.createElement('span');
+  node.textContent = value;
+  return node.innerHTML;
+}
+
+function escapeAttribute(value: string): string {
+  return escapeText(value).replaceAll('"', '&quot;');
+}
+
+function fieldsMarkup(inputs: FieldInput[]): string {
+  if (inputs.length === 0) return '';
+  const rows = inputs
+    .map(
+      (input) =>
+        `<div class="field"><label for="field-${encodeURIComponent(input.name)}">${escapeText(
+          input.name,
+        )}</label>${fieldControl(input)}</div>`,
+    )
+    .join('');
+  // Closed by default: these are optional, and most saves never touch them.
+  return `<details id="fields"><summary>Your fields</summary><div class="field-body">${rows}</div></details>`;
 }
 
 function renderUnconfigured(): void {
@@ -72,6 +109,7 @@ function renderUnconfigured(): void {
 }
 
 function renderForm(form: FormState, existing: boolean): void {
+  renderedFields = form.fields;
   app.innerHTML = `
     <div class="hrcek-header">
       <img src="/icon/32.png" alt="" />
@@ -83,8 +121,7 @@ function renderForm(form: FormState, existing: boolean): void {
       <div class="field"><label for="title">Title</label><input id="title" /></div>
       <div class="field"><label for="notes">Notes</label><textarea id="notes" rows="3"></textarea></div>
       <div class="field"><label for="tags">Tags</label><input id="tags" placeholder="comma, separated" /></div>
-      <div id="fields"></div>
-      <button type="button" class="quiet" id="add-field">Add field</button>
+      ${fieldsMarkup(form.fields)}
       <button type="submit" id="save">${existing ? 'Update' : 'Save'}</button>
       <p id="status" data-kind="info"></p>
     </form>
@@ -95,14 +132,6 @@ function renderForm(form: FormState, existing: boolean): void {
   document.querySelector<HTMLInputElement>('#title')!.value = form.title;
   document.querySelector<HTMLTextAreaElement>('#notes')!.value = form.notes;
   document.querySelector<HTMLInputElement>('#tags')!.value = form.tags;
-  const fieldsBox = document.querySelector<HTMLDivElement>('#fields')!;
-  for (const { name, value } of form.fields) {
-    fieldsBox.append(fieldRow(name, value));
-  }
-
-  document
-    .querySelector<HTMLButtonElement>('#add-field')!
-    .addEventListener('click', () => fieldsBox.append(fieldRow('', '')));
 
   document
     .querySelector<HTMLFormElement>('#entry-form')!
@@ -119,10 +148,14 @@ function collectForm(): FormState {
     title: document.querySelector<HTMLInputElement>('#title')!.value,
     notes: document.querySelector<HTMLTextAreaElement>('#notes')!.value,
     tags: document.querySelector<HTMLInputElement>('#tags')!.value,
-    fields: [...document.querySelectorAll<HTMLDivElement>('.field-row')].map((row) => ({
-      name: row.querySelector<HTMLInputElement>('.field-name')!.value,
-      value: row.querySelector<HTMLInputElement>('.field-value')!.value,
-    })),
+    fields: [
+      ...document.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-field]'),
+    ].map((control) => {
+      const rendered = renderedFields.find(
+        (field) => field.name === control.dataset['field'],
+      )!;
+      return { ...rendered, value: control.value };
+    }),
   };
 }
 
@@ -141,7 +174,7 @@ async function save(): Promise<void> {
       const existing = pageUrl.length > 0 ? await loadExisting(client, pageUrl) : null;
       if (existing !== null) {
         lookupFailed = false;
-        renderForm(entryToForm(existing), true);
+        renderForm(entryToForm(existing, definitions), true);
         setStatus(
           'error',
           'This address is already saved. Review the existing entry, then save again.',
@@ -172,16 +205,22 @@ async function main(): Promise<void> {
   client = clientFromSettings(settings);
   const { url, title } = await getPageInfo();
   pageUrl = url;
+  // Not fatal: without them the form falls back to the entry's own keys,
+  // which is enough to show and re-send what the entry already holds.
+  definitions = await client.listFields().then(
+    (fields) => fields,
+    () => null,
+  );
   try {
     const existing = url.length > 0 ? await loadExisting(client, url) : null;
     if (existing !== null) {
-      renderForm(entryToForm(existing), true);
+      renderForm(entryToForm(existing, definitions), true);
     } else {
-      renderForm(emptyForm(url, title), false);
+      renderForm(emptyForm(url, title, definitions), false);
     }
   } catch (error) {
     lookupFailed = true;
-    renderForm(emptyForm(url, title), false);
+    renderForm(emptyForm(url, title, definitions), false);
     setStatus('error', messageFor(error));
   }
 }
