@@ -198,6 +198,30 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/fields/': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Fields
+     * @description The fields this account's entries may carry.
+     *
+     *     A client reads these to build its own inputs: the kind says what
+     *     sort of value is wanted, and a choice field's options say what the
+     *     choices are.
+     */
+    get: operations['list_fields'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/health': {
     parameters: {
       query?: never;
@@ -210,6 +234,31 @@ export interface paths {
      * @description Report that the service is up, in the caller's language.
      */
     get: operations['health'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/labels/': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Labels
+     * @description This account's labels, optionally those beginning with a string.
+     *
+     *     The same endpoint serves a full list and an autocomplete, because
+     *     they differ only by a filter. `count` is how many labels match,
+     *     not how many this page carries, so a client knows whether to ask
+     *     for more.
+     */
+    get: operations['list_labels'];
     put?: never;
     post?: never;
     delete?: never;
@@ -308,6 +357,23 @@ export interface components {
       /** Url */
       url: string;
     };
+    /**
+     * FieldOut
+     * @description One of the fields this account's entries may carry.
+     *
+     *     `name` is the key: it is what an entry's `fields` object uses, so a
+     *     client writes back what it read here. `options` is empty except
+     *     for a choice field, where it is the only way to know what the
+     *     choices are.
+     */
+    FieldOut: {
+      /** Kind */
+      kind: string;
+      /** Name */
+      name: string;
+      /** Options */
+      options: string[];
+    };
     /** HealthOut */
     HealthOut: {
       /** Message */
@@ -338,15 +404,23 @@ export interface components {
     /** Input */
     Input: {
       /**
+       * After
+       * @default
+       */
+      after?: string;
+      /**
        * Limit
-       * @default 100
+       * @default 1000
        */
       limit?: number;
-      /**
-       * Offset
-       * @default 0
-       */
-      offset?: number;
+    };
+    /**
+     * LabelOut
+     * @description A label already in use on this account's entries.
+     */
+    LabelOut: {
+      /** Name */
+      name: string;
     };
     /** LoginIn */
     LoginIn: {
@@ -361,6 +435,20 @@ export interface components {
       count: number;
       /** Items */
       items: components['schemas']['EntryOut'][];
+    };
+    /** PagedFieldOut */
+    PagedFieldOut: {
+      /** Count */
+      count: number;
+      /** Items */
+      items: components['schemas']['FieldOut'][];
+    };
+    /** PagedLabelOut */
+    PagedLabelOut: {
+      /** Count */
+      count: number;
+      /** Items */
+      items: components['schemas']['LabelOut'][];
     };
     /**
      * TokenCreateIn
@@ -701,6 +789,29 @@ export interface operations {
       };
     };
   };
+  list_fields: {
+    parameters: {
+      query?: {
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PagedFieldOut'];
+        };
+      };
+    };
+  };
   health: {
     parameters: {
       query?: never;
@@ -717,6 +828,30 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['HealthOut'];
+        };
+      };
+    };
+  };
+  list_labels: {
+    parameters: {
+      query?: {
+        starts_with?: string;
+        limit?: number;
+        after?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PagedLabelOut'];
         };
       };
     };
