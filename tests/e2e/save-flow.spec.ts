@@ -66,7 +66,7 @@ test('saves a new entry from the popup', async ({ context, extensionId }) => {
     'A watch',
   );
 
-  await expect(popup.locator('#url')).toHaveValue('https://example.com/watch');
+  await expect(popup.locator('#address')).toHaveText('https://example.com/watch');
   await expect(popup.locator('#title')).toHaveValue('A watch');
   await popup.fill('#notes', '38mm, sapphire');
   await popup.fill('#tags', 'watches, diving');
@@ -97,7 +97,7 @@ test('reopening a saved address prefills the existing entry and updates it', asy
     'https://example.com/watch',
     'ignored',
   );
-  await expect(second.locator('#existing-note')).toBeVisible();
+  await expect(second.locator('.hrcek-header .aside')).toBeVisible();
   await expect(second.locator('#notes')).toHaveValue('original notes');
   await second.fill('#title', 'A watch, revisited');
   await second.click('#save');
@@ -153,13 +153,13 @@ test('a failed initial lookup does not let Save blind-replace an existing entry'
 
   // Initial lookup failed: an empty form is shown, with an error note —
   // but Save is still armed.
-  await expect(popup.locator('#existing-note')).toHaveCount(0);
+  await expect(popup.locator('.hrcek-header .aside')).toHaveCount(0);
   await expect(popup.locator('#notes')).toHaveValue('');
   await expect(popup.locator('#status')).toHaveAttribute('data-kind', 'error');
 
   // Saving now must re-check before writing, not blind-replace the held entry.
   await popup.click('#save');
-  await expect(popup.locator('#existing-note')).toBeVisible();
+  await expect(popup.locator('.hrcek-header .aside')).toBeVisible();
   await expect(popup.locator('#notes')).toHaveValue('precious notes');
   await expect(popup.locator('#status')).not.toContainText('Saved.');
   await expect(popup.locator('#status')).not.toContainText('Updated.');

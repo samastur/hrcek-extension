@@ -1,23 +1,40 @@
+@import '../../lib/ui/theme.css';
+
 body {
-  min-width: 22rem;
-  margin: 0;
-  font-family: system-ui, sans-serif;
-  font-size: 0.875rem;
+  width: 360px;
+  font-size: 0.8125rem;
 }
+
 #app {
   padding: 0.75rem;
 }
-label {
+
+/* The page's address: context, not an input. It is whatever tab you are
+   on, and inviting a retype invites saving the wrong thing. */
+.address {
   display: block;
-  margin-bottom: 0.5rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-bottom: 0.7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-label input,
-label textarea {
-  display: block;
+
+.field {
+  margin-bottom: 0.55rem;
+}
+
+textarea {
+  min-height: 3rem;
+  resize: vertical;
+}
+
+#save {
   width: 100%;
-  box-sizing: border-box;
-  margin-top: 0.15rem;
+  margin-top: 0.35rem;
 }
+
 .field-row {
   display: flex;
   gap: 0.35rem;
@@ -26,10 +43,4 @@ label textarea {
 .field-row input {
   flex: 1;
   min-width: 0;
-}
-#status[data-kind='error'] {
-  color: #b00020;
-}
-#status[data-kind='success'] {
-  color: #1a7f37;
 }
