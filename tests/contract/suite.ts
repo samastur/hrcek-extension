@@ -135,5 +135,35 @@ export function runContractSuite(
       expect(second.status).toBe('updated');
       expect(second.entry.id).toBe(first.entry.id);
     });
+
+    it('describes the fields an entry may carry', async () => {
+      const fields = await client().listFields();
+      // Never assert on Price or Priority: they are a fresh account's
+      // defaults, renameable and deletable by their owner.
+      for (const field of fields) {
+        expect(typeof field.name).toBe('string');
+        expect(['text', 'number', 'choice']).toContain(field.kind);
+        expect(Array.isArray(field.options)).toBe(true);
+        // Options are how a client learns a choice field's choices; every
+        // other kind has none.
+        if (field.kind !== 'choice') expect(field.options).toEqual([]);
+      }
+    });
+
+    it('serves the labels an entry carries, and narrows them by prefix', async () => {
+      // Unique per run, so this passes against a real account that already
+      // has labels of its own.
+      const tag = `contract-${target().runId.slice(0, 8)}`;
+      await client().saveEntry({ url: testUrl('labels'), tags: [tag] });
+
+      const all = await client().listLabels();
+      expect(all.map((label) => label.name)).toContain(tag);
+
+      const narrowed = await client().listLabels({ startsWith: tag.slice(0, 12) });
+      expect(narrowed.map((label) => label.name)).toContain(tag);
+
+      const elsewhere = await client().listLabels({ startsWith: 'zzz-no-such-prefix-' });
+      expect(elsewhere).toEqual([]);
+    });
   });
 }
