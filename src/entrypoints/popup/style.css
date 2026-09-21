@@ -35,12 +35,12 @@ textarea {
   margin-top: 0.35rem;
 }
 
-.field-row {
-  display: flex;
-  gap: 0.35rem;
-  margin-bottom: 0.35rem;
+#fields {
+  margin-bottom: 0.55rem;
 }
-.field-row input {
-  flex: 1;
-  min-width: 0;
+#fields .field-body {
+  margin-top: 0.5rem;
+}
+#fields .field:last-child {
+  margin-bottom: 0;
 }

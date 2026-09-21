@@ -104,20 +104,25 @@ test('reopening a saved address prefills the existing entry and updates it', asy
   await expect(second.locator('#status')).toContainText('Updated.');
 });
 
-test('shows the server message for an unknown field', async ({
+test('offers the account’s own fields and saves a choice', async ({
   context,
   extensionId,
 }) => {
   await configureToken(context, extensionId);
   const popup = await openPopup(context, extensionId, 'https://example.com/x', 'X');
 
-  await popup.click('#add-field');
-  await popup.fill('.field-name', 'colour');
-  await popup.fill('.field-value', 'red');
+  // Built from GET /api/fields/, never hard-coded on the client side.
+  await popup.locator('#fields').click();
+  await expect(popup.locator('[data-field="Price"]')).toBeVisible();
+  await popup.locator('[data-field="Price"]').fill('129');
+  await popup.locator('[data-field="Priority"]').selectOption('high');
   await popup.click('#save');
+  await expect(popup.locator('#status')).toContainText('Saved.');
 
-  await expect(popup.locator('#status')).toHaveAttribute('data-kind', 'error');
-  await expect(popup.locator('#status')).toContainText('no field with that name');
+  const reopened = await openPopup(context, extensionId, 'https://example.com/x', 'X');
+  await reopened.locator('#fields').click();
+  await expect(reopened.locator('[data-field="Price"]')).toHaveValue('129');
+  await expect(reopened.locator('[data-field="Priority"]')).toHaveValue('high');
 });
 
 test('a failed initial lookup does not let Save blind-replace an existing entry', async ({
