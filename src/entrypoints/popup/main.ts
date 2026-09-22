@@ -249,7 +249,13 @@ async function save(): Promise<void> {
       // otherwise, which is the documented way to leave a picture alone.
       ...(choice.kind === 'url' && bytes === null ? { imageUrl: choice.url } : {}),
     });
-    const trouble = await attachPicture(client, outcome.entry, choice, bytes);
+    // image_url is fetched inside the save's own transaction, so an
+    // address the server will not go to takes the save with it. submitSave
+    // posts again without the picture when that happens and reports the
+    // reason here — the entry stands either way.
+    const trouble =
+      outcome.pictureTrouble ??
+      (await attachPicture(client, outcome.entry, choice, bytes));
     if (trouble !== null) {
       // The entry stands; only the picture did not.
       setStatus('error', `Saved, but the picture could not be attached: ${trouble}`);

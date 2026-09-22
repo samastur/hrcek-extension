@@ -34,6 +34,15 @@ export async function loadExisting(
   }
 }
 
+export interface SaveOutcome extends SaveResult {
+  /**
+   * The server's account of why the picture did not come, when the entry
+   * only saved because `image_url` was dropped. Null when nothing was
+   * dropped — including when no picture was offered at all.
+   */
+  pictureTrouble: string | null;
+}
+
 /**
  * The single submit boundary. A future offline queue slots in here:
  * persist the request when the server is unreachable instead of throwing.
@@ -41,15 +50,39 @@ export async function loadExisting(
 export async function submitSave(
   client: HrcekClient,
   request: SaveRequest,
-): Promise<SaveResult> {
-  return client.saveEntry({
-    // title, notes and tags always go in full: POST replaces, so a
-    // partial send silently clears whatever it left out.
-    url: request.url,
-    title: request.title,
-    notes: request.notes,
-    tags: request.tags,
-    fields: request.fields,
-    ...(request.imageUrl === undefined ? {} : { image_url: request.imageUrl }),
-  });
+): Promise<SaveOutcome> {
+  const post = (imageUrl: string | undefined): Promise<SaveResult> =>
+    client.saveEntry({
+      // title, notes and tags always go in full: POST replaces, so a
+      // partial send silently clears whatever it left out.
+      url: request.url,
+      title: request.title,
+      notes: request.notes,
+      tags: request.tags,
+      fields: request.fields,
+      ...(imageUrl === undefined ? {} : { image_url: imageUrl }),
+    });
+
+  try {
+    return { ...(await post(request.imageUrl)), pictureTrouble: null };
+  } catch (error) {
+    // A picture never fails the entry. The server fetches image_url
+    // inside the save's own transaction, so an address it will not go to
+    // — a signed URL, a referer check, a host that does not resolve —
+    // takes the whole save down with it. Post again without the picture
+    // and report the picture separately, the way every other picture
+    // failure is reported.
+    //
+    // The code prefix is the contract; the message is translated and may
+    // be reworded, so it is shown and never branched on. Retried once and
+    // once only: the second post carries nothing that can fail this way.
+    if (
+      request.imageUrl === undefined ||
+      !(error instanceof HrcekApiError) ||
+      !error.code.startsWith('HRC-IMAGE-')
+    ) {
+      throw error;
+    }
+    return { ...(await post(undefined)), pictureTrouble: error.message };
+  }
 }
