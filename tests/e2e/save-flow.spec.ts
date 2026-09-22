@@ -313,6 +313,62 @@ test('shows the picture an entry already holds, fetched with the token', async (
   expect(entry.image).not.toBeNull();
 });
 
+test('previews pictures while you click through them, and puts the preview away when you move on', async ({
+  context,
+  extensionId,
+}) => {
+  await configureToken(context, extensionId);
+  const address = 'https://example.com/browsable';
+  await fetch(`${SERVER}/api/entries/`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${FAKE_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      url: address,
+      title: 'Browsable',
+      image_url: 'https://cdn.example.com/cover.jpg',
+    }),
+  });
+
+  const popup = await openPopup(context, extensionId, address, 'ignored');
+  const hero = popup.locator('.hero');
+
+  // A picture already held is a choice already made: collapsed on open.
+  await expect(popup.locator('.tile.held')).toBeVisible();
+  await expect(hero).toHaveCount(0);
+
+  await popup.click('.expand');
+  await expect(hero).toBeVisible();
+
+  // Clicking through the tiles is looking, not leaving — the preview must
+  // survive the click that asked for it, or there is no way to judge a
+  // picture at all.
+  await popup.click('.tile.none');
+  await expect(popup.locator('.hero.empty')).toBeVisible();
+  await popup.click('.tile.held');
+  await expect(popup.locator('img.hero')).toHaveAttribute('src', /^blob:/);
+
+  // Typing a tag and then moving on must do both things: commit the tag,
+  // and put the preview away.
+  await popup.locator('.chip-input').fill('reading');
+  await popup.locator('#title').focus();
+  await expect(popup.locator('.chip')).toHaveCount(1);
+  await expect(hero).toHaveCount(0);
+
+  // And the picture the last click chose is the one that is kept.
+  await popup.click('#save');
+  await expect(popup.locator('#status')).toContainText('Updated.');
+  const entry = await (
+    await fetch(`${SERVER}/api/entries/by-url/?url=${encodeURIComponent(address)}`, {
+      headers: { Authorization: `Bearer ${FAKE_TOKEN}` },
+    })
+  ).json();
+  expect(entry.image).not.toBeNull();
+  expect(entry.tags).toEqual(['reading']);
+});
+
 test('keeps the tags and fields an entry holds when only the title changes', async ({
   context,
   extensionId,

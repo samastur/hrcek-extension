@@ -205,12 +205,23 @@ function renderForm(form: FormState, existing: boolean): void {
     onSubmit: () => void save(),
   });
 
-  document
-    .querySelector<HTMLFormElement>('#entry-form')!
-    .addEventListener('submit', (event) => {
-      event.preventDefault();
-      void save();
-    });
+  const entryForm = document.querySelector<HTMLFormElement>('#entry-form')!;
+  // Attached here, once per rendered form, rather than inside the picker:
+  // the picker redraws itself on every tile click, and a listener added
+  // per redraw would pile up. The form is rebuilt wholesale by each
+  // renderForm, so this one is discarded with it.
+  //
+  // focusin reaches this listener only when the focus landed inside the
+  // form, so it says precisely "attention moved to another field".
+  entryForm.addEventListener('focusin', (event) => {
+    const target = event.target;
+    if (target instanceof Node && pictureHost.contains(target)) return;
+    picker?.collapse();
+  });
+  entryForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    void save();
+  });
 }
 
 function collectForm(): FormState {
@@ -235,6 +246,11 @@ function collectForm(): FormState {
 }
 
 async function save(): Promise<void> {
+  // Said here rather than on the form's submit event so that both ways in
+  // — the button and Enter in the tag field — put the preview away. Not
+  // every browser focuses a button that was clicked, so focusin alone
+  // would miss it.
+  picker?.collapse();
   if (!settings || !client) {
     setStatus('error', 'Settings not available.');
     return;
