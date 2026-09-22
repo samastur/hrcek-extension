@@ -73,4 +73,31 @@ describe('rankCandidates', () => {
     );
     expect(rankCandidates(many)).toHaveLength(MAX_CANDIDATES);
   });
+
+  it('sorts by area, not by either dimension alone', () => {
+    // wide.jpg is far wider (1000 vs 200) but tall.jpg has the bigger
+    // area (140,000 vs 120,000) thanks to its height (700 vs 120) — a
+    // width-only sort would put wide.jpg first, which is wrong here.
+    expect(
+      rankCandidates([
+        img('https://e.test/wide.jpg', 1000, 120),
+        img('https://e.test/tall.jpg', 200, 700),
+      ]).map((c) => c.url),
+    ).toEqual(['https://e.test/tall.jpg', 'https://e.test/wide.jpg']);
+  });
+
+  it('drops an SVG even behind a query string, and keeps a host that merely contains .svg', () => {
+    expect(
+      rankCandidates([
+        img('https://e.test/logo.svg?v=2'),
+        img('https://svg.e.test/photo.jpg', 800, 600),
+      ]).map((c) => c.url),
+    ).toEqual(['https://svg.e.test/photo.jpg']);
+  });
+
+  it('drops a string that is not a URL at all', () => {
+    // Candidates come from whatever the page contained; a malformed one
+    // must be dropped, not thrown out of the ranking.
+    expect(rankCandidates([img('not a url at all')])).toEqual([]);
+  });
 });
