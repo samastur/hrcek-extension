@@ -333,6 +333,7 @@ export async function startFakeHrcek(port = 0): Promise<FakeHrcek> {
           notes?: string;
           tags?: string[];
           fields?: Record<string, unknown> | null;
+          image_url?: string;
         };
         if (typeof body.url !== 'string' || !isValidUrl(body.url)) {
           return json(
@@ -356,7 +357,17 @@ export async function startFakeHrcek(port = 0): Promise<FakeHrcek> {
           notes: body.notes ?? '',
           tags: [...(body.tags ?? [])].sort(),
           fields: applied.fields,
-          image: existing?.image ?? null,
+          // Like fields, and unlike every other attribute, an absent
+          // image_url changes nothing — a client that predates pictures
+          // cannot strip one by saving an entry.
+          image:
+            typeof body.image_url === 'string' && body.image_url.length > 0
+              ? {
+                  url: `/entries/${existing?.id ?? nextId}/image/`,
+                  width: 1200,
+                  height: 630,
+                }
+              : (existing?.image ?? null),
           created_at: existing?.created_at ?? now,
           updated_at: now,
         };
