@@ -2,6 +2,8 @@ import { browser } from 'wxt/browser';
 import { HrcekApiError, HrcekNetworkError } from '../../lib/api/errors';
 import { HrcekClient } from '../../lib/api/client';
 import { clientFromSettings } from '../../lib/client-factory';
+import { harvestCandidates } from '../../lib/page/harvest-client';
+import { attachPicture, fetchPictureBytes } from '../../lib/picture';
 import { loadExisting, submitSave } from '../../lib/save';
 import { loadSettings } from '../../lib/settings';
 import {
@@ -12,9 +14,11 @@ import {
   type FormState,
 } from './form';
 import { createChipInput, type ChipInput } from './chips';
+import { createPicker, type Picker } from './picker';
 import type { Settings } from '../../lib/settings';
 import type { FieldInput } from '../../lib/fields';
 import type { FieldOut } from '../../lib/api/types';
+import type { Candidate } from '../../lib/page/candidates';
 import './style.css';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
@@ -30,6 +34,12 @@ let renderedFields: FieldInput[] = [];
 let definitions: FieldOut[] | null = null;
 /** The mounted tags chip input; remounted by every renderForm() call. */
 let chips: ChipInput | null = null;
+/** The mounted picture picker; remounted by every renderForm() call. */
+let picker: Picker | null = null;
+/** Harvested once in main(); what the page itself offers. */
+let candidates: Candidate[] = [];
+/** The absolute address of the picture the entry already holds, if any. */
+let heldPictureUrl: string | null = null;
 
 async function getPageInfo(): Promise<{ url: string; title: string }> {
   // e2e builds only: Playwright opens the popup as an ordinary tab, which
@@ -138,6 +148,7 @@ function renderForm(form: FormState, existing: boolean): void {
     <form id="entry-form">
       <div class="field"><label for="title">Title</label><input id="title" /></div>
       <div class="field"><label for="notes">Notes</label><textarea id="notes" rows="3"></textarea></div>
+      <div class="field" id="picture-field"><label>Picture</label><div id="picture"></div></div>
       <div class="field"><label>Tags</label><div id="tags"></div></div>
       ${fieldsMarkup(form.fields)}
       <button type="submit" id="save">${existing ? 'Update' : 'Save'}</button>
@@ -149,6 +160,12 @@ function renderForm(form: FormState, existing: boolean): void {
   address.title = form.url;
   document.querySelector<HTMLInputElement>('#title')!.value = form.title;
   document.querySelector<HTMLTextAreaElement>('#notes')!.value = form.notes;
+  const pictureHost = document.querySelector<HTMLDivElement>('#picture')!;
+  picker = createPicker(pictureHost, { candidates, held: heldPictureUrl });
+  // The row is absent, not empty, when the page offered nothing.
+  if (pictureHost.innerHTML === '') {
+    document.querySelector<HTMLDivElement>('#picture-field')!.hidden = true;
+  }
   chips = createChipInput(document.querySelector<HTMLDivElement>('#tags')!, {
     tags: parseTags(form.tags),
     suggest: (prefix) =>
@@ -204,6 +221,8 @@ async function save(): Promise<void> {
       const existing = pageUrl.length > 0 ? await loadExisting(client, pageUrl) : null;
       if (existing !== null) {
         lookupFailed = false;
+        heldPictureUrl =
+          existing.image == null ? null : `${settings.serverUrl}${existing.image.url}`;
         renderForm(entryToForm(existing, definitions), true);
         setStatus(
           'error',
@@ -219,7 +238,23 @@ async function save(): Promise<void> {
   }
 
   try {
-    const outcome = await submitSave(client, formToSaveRequest(collectForm()));
+    const choice = picker?.choice() ?? { kind: 'unchanged' as const };
+    // Bytes first: the server refuses to fetch from private hosts, and a
+    // signed or referer-checked address will not come back for it.
+    const bytes = choice.kind === 'url' ? await fetchPictureBytes(choice.url) : null;
+    const request = formToSaveRequest(collectForm());
+    const outcome = await submitSave(client, {
+      ...request,
+      // image_url only when the bytes could not be had. Omitted entirely
+      // otherwise, which is the documented way to leave a picture alone.
+      ...(choice.kind === 'url' && bytes === null ? { imageUrl: choice.url } : {}),
+    });
+    const trouble = await attachPicture(client, outcome.entry, choice, bytes);
+    if (trouble !== null) {
+      // The entry stands; only the picture did not.
+      setStatus('error', `Saved, but the picture could not be attached: ${trouble}`);
+      return;
+    }
     setStatus('success', outcome.status === 'created' ? 'Saved.' : 'Updated.');
   } catch (error) {
     setStatus('error', messageFor(error));
@@ -235,6 +270,8 @@ async function main(): Promise<void> {
   client = clientFromSettings(settings);
   const { url, title } = await getPageInfo();
   pageUrl = url;
+  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  candidates = tab?.id === undefined ? [] : await harvestCandidates(tab.id);
   // Not fatal: without them the form falls back to the entry's own keys,
   // which is enough to show and re-send what the entry already holds.
   definitions = await client.listFields().then(
@@ -244,6 +281,8 @@ async function main(): Promise<void> {
   try {
     const existing = url.length > 0 ? await loadExisting(client, url) : null;
     if (existing !== null) {
+      heldPictureUrl =
+        existing.image == null ? null : `${settings.serverUrl}${existing.image.url}`;
       renderForm(entryToForm(existing, definitions), true);
     } else {
       renderForm(emptyForm(url, title, definitions), false);
