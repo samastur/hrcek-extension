@@ -4,6 +4,8 @@ import { expect, SERVER, test } from './fixtures';
 const FAKE_TOKEN = 'hrcek_test_token';
 const FAKE_IDENTIFIER = 'nina@example.com';
 const FAKE_PASSWORD = 'correct horse';
+/** The address the fake refuses to fetch — tests/fake-hrcek/server.ts. */
+const UNFETCHABLE_IMAGE_URL = 'https://unfetchable.example.com/picture.jpg';
 
 test.beforeEach(async () => {
   await fetch(`${SERVER}/__reset`, { method: 'POST' });
@@ -267,6 +269,49 @@ test('hides the picture field when the page offered nothing, and still saves', a
   await expect(popup.locator('#picture-field')).toBeHidden();
   await popup.click('#save');
   await expect(popup.locator('#status')).toContainText('Saved.');
+});
+
+test('saves the entry even when the server refuses the picture, and says so', async ({
+  context,
+  extensionId,
+}) => {
+  await configureToken(context, extensionId);
+  const address = 'https://example.com/cdn-hosted';
+
+  const popup = await context.newPage();
+  // The bytes are tried first and must fail, as they do for any picture
+  // not served from the page's own host. Aborted rather than left to DNS,
+  // so the test neither waits on the network nor depends on it.
+  await popup.route(`${UNFETCHABLE_IMAGE_URL}*`, (route) => route.abort('failed'));
+  const query = new URLSearchParams({
+    url: address,
+    title: 'CDN hosted',
+    // The popup is its own tab here, so nothing is harvested; this seeds
+    // the picker with what an og:image would have offered.
+    candidate: UNFETCHABLE_IMAGE_URL,
+  });
+  await popup.goto(`chrome-extension://${extensionId}/popup.html?${query}`);
+
+  // Preselected, so Save is the only gesture — as it is for any page that
+  // declares a picture.
+  await expect(popup.locator('#picture-field')).toBeVisible();
+  await popup.click('#save');
+
+  // The server fetches image_url inside the save's transaction and fails
+  // the whole call. A picture never fails the entry: it is saved without
+  // the picture, and the person is told which half went wrong.
+  const status = popup.locator('#status');
+  await expect(status).toContainText('Saved');
+  await expect(status).toContainText('could not be attached');
+  await expect(status).toContainText('That image could not be fetched.');
+
+  const entry = await (
+    await fetch(`${SERVER}/api/entries/by-url/?url=${encodeURIComponent(address)}`, {
+      headers: { Authorization: `Bearer ${FAKE_TOKEN}` },
+    })
+  ).json();
+  expect(entry.title).toBe('CDN hosted');
+  expect(entry.image).toBeNull();
 });
 
 test('shows the picture an entry already holds, fetched with the token', async ({
