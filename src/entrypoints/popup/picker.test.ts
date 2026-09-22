@@ -65,4 +65,72 @@ describe('createPicker', () => {
     expect(host.innerHTML).toBe('');
     expect(picker.choice()).toEqual({ kind: 'unchanged' });
   });
+
+  it('builds the hero as an element, so a candidate address cannot break out of markup', () => {
+    // A page controls its own candidate addresses. A literal quote must not
+    // let one escape an attribute and plant a new one (like onerror=...).
+    const hostile: Candidate[] = [
+      {
+        url: 'https://e.test/x.jpg" onerror="alert(1)',
+        width: 800,
+        height: 600,
+        fromHead: false,
+      },
+    ];
+    const { host } = mount(hostile, null);
+    const heroes = host.querySelectorAll<HTMLImageElement>('.hero');
+    expect(heroes).toHaveLength(1);
+    // The attribute carries exactly the given string — nothing was parsed
+    // out of it, because it was never parsed as markup at all.
+    expect(heroes[0]!.getAttribute('src')).toBe(hostile[0]!.url);
+    expect(heroes[0]!.getAttribute('onerror')).toBeNull();
+    // No stray element was smuggled in alongside the hero and its own tile
+    // thumbnail — exactly the two <img>s this page's one candidate can make.
+    expect(host.querySelectorAll('img')).toHaveLength(2);
+    expect(host.querySelectorAll('[onerror]')).toHaveLength(0);
+  });
+
+  it('pages through the strip, sliding the window and toggling the arrows at the ends', () => {
+    const many: Candidate[] = Array.from({ length: 6 }, (_, index) => ({
+      url: `https://e.test/${index}.jpg`,
+      width: 800,
+      height: 600,
+      fromHead: false,
+    }));
+    const { host } = mount(many, null);
+    // 7 tiles total (none + 6 candidates), 4 shown at a time.
+    const srcsOf = () =>
+      [...host.querySelectorAll<HTMLImageElement>('.tile img')].map((image) =>
+        image.getAttribute('src'),
+      );
+    expect(host.querySelectorAll('.tile')).toHaveLength(4);
+    expect(srcsOf()).toEqual([
+      'https://e.test/0.jpg',
+      'https://e.test/1.jpg',
+      'https://e.test/2.jpg',
+    ]);
+    const [earlier, more] = host.querySelectorAll<HTMLButtonElement>('.step');
+    expect(earlier!.disabled).toBe(true);
+    expect(more!.disabled).toBe(false);
+
+    more!.click();
+
+    expect(host.querySelectorAll('.tile')).toHaveLength(3);
+    expect(srcsOf()).toEqual([
+      'https://e.test/3.jpg',
+      'https://e.test/4.jpg',
+      'https://e.test/5.jpg',
+    ]);
+    const [earlierAfter, moreAfter] = host.querySelectorAll<HTMLButtonElement>('.step');
+    expect(earlierAfter!.disabled).toBe(false);
+    expect(moreAfter!.disabled).toBe(true);
+
+    earlierAfter!.click();
+
+    expect(srcsOf()).toEqual([
+      'https://e.test/0.jpg',
+      'https://e.test/1.jpg',
+      'https://e.test/2.jpg',
+    ]);
+  });
 });
