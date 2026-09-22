@@ -253,6 +253,59 @@ test('mints a token from credentials, then saves with it', async ({
   await expect(popup.locator('#status')).toContainText('Saved.');
 });
 
+test('offers the page’s picture and saves it with the entry', async ({
+  context,
+  extensionId,
+}) => {
+  await configureToken(context, extensionId);
+  const address = 'https://example.com/article';
+  const popup = await openPopup(context, extensionId, address, 'Article');
+
+  // The picker only appears when the page offered something. Here the
+  // popup IS the active tab, so nothing is harvested and the row is
+  // absent — which is itself the behaviour worth pinning down.
+  await expect(popup.locator('#picture-field')).toBeHidden();
+  await popup.click('#save');
+  await expect(popup.locator('#status')).toContainText('Saved.');
+});
+
+test('keeps the tags and fields an entry holds when only the title changes', async ({
+  context,
+  extensionId,
+}) => {
+  await configureToken(context, extensionId);
+  const address = 'https://example.com/held';
+  await fetch(`${SERVER}/api/entries/`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${FAKE_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      url: address,
+      title: 'Before',
+      tags: ['diving'],
+      fields: { Price: '129' },
+    }),
+  });
+
+  const popup = await openPopup(context, extensionId, address, 'ignored');
+  await expect(popup.locator('.chip')).toHaveCount(1);
+  await popup.fill('#title', 'After');
+  await popup.click('#save');
+  await expect(popup.locator('#status')).toContainText('Updated.');
+
+  const entry = await (
+    await fetch(`${SERVER}/api/entries/by-url/?url=${encodeURIComponent(address)}`, {
+      headers: { Authorization: `Bearer ${FAKE_TOKEN}` },
+    })
+  ).json();
+  expect(entry.title).toBe('After');
+  // POST replaces, so these only survive because the form sent them back.
+  expect(entry.tags).toEqual(['diving']);
+  expect(entry.fields).toEqual({ Price: '129' });
+});
+
 test('says what to do when the server cannot mint tokens', async ({
   context,
   extensionId,
