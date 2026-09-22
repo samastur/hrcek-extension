@@ -100,6 +100,24 @@ export class HrcekClient {
     };
   }
 
+  /**
+   * The bytes behind an entry's `image.url`. That address answers only to
+   * the account owning the entry, so it needs the token like every other
+   * call — and an `<img src>` cannot carry one, which is why a picture is
+   * fetched here and shown from an object URL instead.
+   *
+   * `path` is the server-relative address the entry itself carried; it is
+   * not under `/api/`.
+   */
+  async fetchImage(path: string): Promise<Blob> {
+    // A refusal comes back as the JSON envelope even here, so both types
+    // are acceptable.
+    const response = await this.request('GET', path, undefined, {
+      accept: 'image/*, application/json',
+    });
+    return response.blob();
+  }
+
   /** Replaces whatever picture the entry had. Multipart, not JSON. */
   async uploadImage(id: number, bytes: Blob, filename: string): Promise<EntryOut> {
     const form = new FormData();
@@ -116,12 +134,14 @@ export class HrcekClient {
     method: string,
     path: string,
     body?: unknown,
-    options: { anonymous?: boolean } = {},
+    options: { anonymous?: boolean; accept?: string } = {},
   ): Promise<Response> {
     const authenticated = !options.anonymous && this.token !== null;
     const isForm = body instanceof FormData;
     const headers: Record<string, string> = {
-      Accept: 'application/json',
+      // Every route but the picture answers JSON; a refusal is JSON even
+      // from the picture route, and errorFromResponse reads it as such.
+      Accept: options.accept ?? 'application/json',
       // FormData sets its own Content-Type, boundary and all. Setting it
       // by hand produces a body the server cannot parse.
       ...(body !== undefined && !isForm ? { 'Content-Type': 'application/json' } : {}),

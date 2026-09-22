@@ -196,6 +196,45 @@ describe('HrcekClient', () => {
     expect(entry.image).not.toBeNull();
   });
 
+  it('fetchImage() carries the token to the entry’s own image address', async () => {
+    // That address answers only to the account that owns the entry, and an
+    // <img src> can present nothing — which is the whole reason this
+    // method exists.
+    server.use(
+      http.get(`${BASE}/entries/1/image/`, ({ request }) => {
+        expect(request.headers.get('Authorization')).toBe('Bearer hrcek_abc');
+        return HttpResponse.arrayBuffer(new Uint8Array([1, 2, 3]).buffer, {
+          headers: { 'Content-Type': 'image/png' },
+        });
+      }),
+    );
+
+    const bytes = await client().fetchImage('/entries/1/image/');
+    expect(bytes.type).toBe('image/png');
+    expect(bytes.size).toBe(3);
+  });
+
+  it('fetchImage() reports a refusal like every other call', async () => {
+    server.use(
+      http.get(`${BASE}/entries/9/image/`, () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: 'HRC-CORE-0003',
+              message: 'The requested resource does not exist.',
+              details: {},
+            },
+          },
+          { status: 404 },
+        ),
+      ),
+    );
+
+    await expect(client().fetchImage('/entries/9/image/')).rejects.toMatchObject({
+      code: 'HRC-CORE-0003',
+    });
+  });
+
   it('deleteImage() accepts the 204 that has no body', async () => {
     server.use(
       http.delete(

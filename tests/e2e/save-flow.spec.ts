@@ -269,6 +269,50 @@ test('hides the picture field when the page offered nothing, and still saves', a
   await expect(popup.locator('#status')).toContainText('Saved.');
 });
 
+test('shows the picture an entry already holds, fetched with the token', async ({
+  context,
+  extensionId,
+}) => {
+  await configureToken(context, extensionId);
+  const address = 'https://example.com/illustrated';
+  await fetch(`${SERVER}/api/entries/`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${FAKE_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      url: address,
+      title: 'Illustrated',
+      image_url: 'https://cdn.example.com/cover.jpg',
+    }),
+  });
+
+  const popup = await openPopup(context, extensionId, address, 'ignored');
+
+  // The entry's image address answers only to the owning account, so the
+  // popup fetches the bytes with the token and shows those. A plain
+  // <img src> on that address would render broken here.
+  await expect(popup.locator('#picture-field')).toBeVisible();
+  const held = popup.locator('.tile.held img');
+  await expect(held).toHaveAttribute('src', /^blob:/);
+  // It decoded, so those really are the picture's bytes.
+  await expect
+    .poll(() => held.evaluate((image: HTMLImageElement) => image.naturalWidth))
+    .toBeGreaterThan(0);
+
+  // And leaving it alone leaves it alone.
+  await popup.fill('#title', 'Illustrated, revisited');
+  await popup.click('#save');
+  await expect(popup.locator('#status')).toContainText('Updated.');
+  const entry = await (
+    await fetch(`${SERVER}/api/entries/by-url/?url=${encodeURIComponent(address)}`, {
+      headers: { Authorization: `Bearer ${FAKE_TOKEN}` },
+    })
+  ).json();
+  expect(entry.image).not.toBeNull();
+});
+
 test('keeps the tags and fields an entry holds when only the title changes', async ({
   context,
   extensionId,
