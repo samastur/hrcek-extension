@@ -28,6 +28,9 @@ export default defineConfig({
       ...(mode === 'e2e' && manifestVersion === 2
         ? ['http://localhost/*', 'http://127.0.0.1/*']
         : []),
+      // MV3 needs this to inject at all. MV2 reaches the same thing
+      // through tabs.executeScript, which activeTab already covers.
+      ...(manifestVersion === 3 ? ['scripting'] : []),
     ],
     ...(mode === 'e2e' && manifestVersion === 3
       ? { host_permissions: ['http://localhost/*', 'http://127.0.0.1/*'] }
