@@ -22,6 +22,13 @@ export default defineConfig({
     permissions: [
       'activeTab',
       'storage',
+      // The saved-state badge needs each tab's address to decide whether
+      // that page is already held. `activeTab` only reveals a tab's URL
+      // after a user gesture toward the extension on that specific tab;
+      // `tabs` grants `url`/`title`/`favIconUrl` for every tab, with no
+      // additional host access, which is exactly what tabs.onActivated
+      // and tabs.onUpdated need to paint the icon while browsing normally.
+      'tabs',
       // e2e builds talk to the fake server without the optional-permission
       // dance (Playwright cannot click native permission prompts). MV2 has
       // no separate host_permissions key, so the origins go here.

@@ -76,9 +76,13 @@ export default defineBackground(() => {
   browser.runtime.onMessage.addListener((message: unknown) => {
     const saved = message as { type?: string; url?: string; held?: boolean };
     if (saved.type !== 'hrcek:saved' || saved.url === undefined) return undefined;
-    savedState.mark(saved.url, saved.held ?? true);
+    const url = saved.url;
+    savedState.mark(url, saved.held ?? true);
+    // Repaint with the address the message carried, not a freshly-queried
+    // tab.url — they can differ (trailing slash, www., case), and the
+    // point is to reflect the entry that was just marked.
     void browser.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
-      if (tab?.id !== undefined) void paint(tab.id, tab.url);
+      if (tab?.id !== undefined) void paint(tab.id, url);
     });
     return undefined;
   });
