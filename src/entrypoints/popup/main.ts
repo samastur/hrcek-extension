@@ -4,7 +4,14 @@ import { HrcekClient } from '../../lib/api/client';
 import { clientFromSettings } from '../../lib/client-factory';
 import { loadExisting, submitSave } from '../../lib/save';
 import { loadSettings } from '../../lib/settings';
-import { emptyForm, entryToForm, formToSaveRequest, type FormState } from './form';
+import {
+  emptyForm,
+  entryToForm,
+  formToSaveRequest,
+  parseTags,
+  type FormState,
+} from './form';
+import { createChipInput, type ChipInput } from './chips';
 import type { Settings } from '../../lib/settings';
 import type { FieldInput } from '../../lib/fields';
 import type { FieldOut } from '../../lib/api/types';
@@ -21,6 +28,8 @@ let pageUrl = '';
 let renderedFields: FieldInput[] = [];
 /** Loaded once in main(); null when GET /api/fields/ could not be read. */
 let definitions: FieldOut[] | null = null;
+/** The mounted tags chip input; remounted by every renderForm() call. */
+let chips: ChipInput | null = null;
 
 async function getPageInfo(): Promise<{ url: string; title: string }> {
   // e2e builds only: Playwright opens the popup as an ordinary tab, which
@@ -129,7 +138,7 @@ function renderForm(form: FormState, existing: boolean): void {
     <form id="entry-form">
       <div class="field"><label for="title">Title</label><input id="title" /></div>
       <div class="field"><label for="notes">Notes</label><textarea id="notes" rows="3"></textarea></div>
-      <div class="field"><label for="tags">Tags</label><input id="tags" placeholder="comma, separated" /></div>
+      <div class="field"><label>Tags</label><div id="tags"></div></div>
       ${fieldsMarkup(form.fields)}
       <button type="submit" id="save">${existing ? 'Update' : 'Save'}</button>
       <p id="status" data-kind="info"></p>
@@ -140,7 +149,16 @@ function renderForm(form: FormState, existing: boolean): void {
   address.title = form.url;
   document.querySelector<HTMLInputElement>('#title')!.value = form.title;
   document.querySelector<HTMLTextAreaElement>('#notes')!.value = form.notes;
-  document.querySelector<HTMLInputElement>('#tags')!.value = form.tags;
+  chips = createChipInput(document.querySelector<HTMLDivElement>('#tags')!, {
+    tags: parseTags(form.tags),
+    suggest: (prefix) =>
+      client === null
+        ? Promise.resolve([])
+        : client
+            .listLabels({ startsWith: prefix })
+            .then((labels) => labels.map((label) => label.name)),
+    onSubmit: () => void save(),
+  });
 
   document
     .querySelector<HTMLFormElement>('#entry-form')!
@@ -156,7 +174,7 @@ function collectForm(): FormState {
     url: pageUrl,
     title: document.querySelector<HTMLInputElement>('#title')!.value,
     notes: document.querySelector<HTMLTextAreaElement>('#notes')!.value,
-    tags: document.querySelector<HTMLInputElement>('#tags')!.value,
+    tags: (chips?.tags() ?? []).join(', '),
     // The `!` here relies on fieldsMarkup and this query iterating the same
     // rendered set — every [data-field] control on the page came from
     // renderedFields, so the name is always found.

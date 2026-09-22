@@ -69,7 +69,11 @@ test('saves a new entry from the popup', async ({ context, extensionId }) => {
   await expect(popup.locator('#address')).toHaveText('https://example.com/watch');
   await expect(popup.locator('#title')).toHaveValue('A watch');
   await popup.fill('#notes', '38mm, sapphire');
-  await popup.fill('#tags', 'watches, diving');
+  await popup.locator('.chip-input').fill('watches');
+  await popup.locator('.chip-input').press(',');
+  await popup.locator('.chip-input').fill('diving');
+  await popup.locator('.chip-input').press(',');
+  await expect(popup.locator('.chip')).toHaveCount(2);
   await popup.click('#save');
 
   await expect(popup.locator('#status')).toContainText('Saved.');
@@ -185,7 +189,8 @@ test('a failed initial lookup does not let Save blind-replace an existing entry'
   const url = 'https://example.com/blip';
   const setup = await openPopup(context, extensionId, url, 'Blip');
   await setup.fill('#notes', 'precious notes');
-  await setup.fill('#tags', 'keep');
+  await setup.locator('.chip-input').fill('keep');
+  await setup.locator('.chip-input').press(',');
   await setup.click('#save');
   await expect(setup.locator('#status')).toContainText('Saved.');
   await setup.close();
