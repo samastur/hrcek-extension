@@ -34,17 +34,39 @@ describe('createPicker', () => {
     expect(host.querySelector('.hero')).not.toBeNull();
   });
 
-  it('collapses once a choice is made', () => {
+  it('keeps the hero open on a tile click, and shows what was clicked', () => {
+    // Clicking a tile is looking, not leaving. Closing the preview on the
+    // click that asked for it makes browsing the pictures impossible —
+    // the thumbnails are far too small to judge a picture by.
     const { host } = mount();
     host.querySelectorAll<HTMLButtonElement>('.tile')[2]!.click();
-    expect(host.querySelector('.hero')).toBeNull();
+    const hero = host.querySelector<HTMLImageElement>('.hero');
+    expect(hero).not.toBeNull();
+    expect(hero!.getAttribute('src')).toBe('https://e.test/a.jpg');
   });
 
-  it('re-opens when the strip is clicked again', () => {
-    const { host } = mount();
+  it('takes the clicked tile as the choice straight away', () => {
+    // They may click a tile and then go directly to Save.
+    const { host, picker } = mount();
     host.querySelectorAll<HTMLButtonElement>('.tile')[2]!.click();
+    expect(picker.choice()).toEqual({ kind: 'url', url: 'https://e.test/a.jpg' });
+  });
+
+  it('puts the hero away when told to, and the expand control brings it back', () => {
+    const { host, picker } = mount();
+    picker.collapse();
+    expect(host.querySelector('.hero')).toBeNull();
     host.querySelector<HTMLButtonElement>('.expand')!.click();
     expect(host.querySelector('.hero')).not.toBeNull();
+  });
+
+  it('collapse() on an already collapsed picker changes nothing', () => {
+    // It runs on every focus change in the form; a redraw each time would
+    // be waste, and could disturb what is focused.
+    const { host, picker } = mount(CANDIDATES, HELD);
+    const before = host.innerHTML;
+    picker.collapse();
+    expect(host.innerHTML).toBe(before);
   });
 
   it('opens collapsed on an entry that already holds a picture', () => {

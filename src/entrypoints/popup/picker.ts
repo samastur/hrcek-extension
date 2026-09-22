@@ -26,6 +26,12 @@ export interface PickerOptions {
 
 export interface Picker {
   choice(): PictureChoice;
+  /**
+   * Puts the large preview away. For the caller to invoke when attention
+   * has moved on — clicking through tiles is looking, not leaving, so the
+   * picker never closes itself on a click of its own.
+   */
+  collapse(): void;
 }
 
 /** How many tiles the strip shows at once. */
@@ -46,7 +52,7 @@ export function createPicker(host: HTMLElement, options: PickerOptions): Picker 
   // Nothing to offer and nothing to drop: the row is simply absent.
   if (candidates.length === 0 && held === null) {
     host.innerHTML = '';
-    return { choice: () => ({ kind: 'unchanged' }) };
+    return { choice: () => ({ kind: 'unchanged' }), collapse: () => {} };
   }
 
   /** null means "no picture"; HELD means "leave what it has alone". */
@@ -135,8 +141,10 @@ export function createPicker(host: HTMLElement, options: PickerOptions): Picker 
       }
       button.addEventListener('click', () => {
         selected = tile.key === 'none' ? null : tile.key;
-        // Choosing is the moment the hero has done its job.
-        expanded = false;
+        // The hero follows the click and stays as it was: looking through
+        // the tiles is exactly when the large preview is wanted, and a
+        // thumbnail is too small to judge a picture by. It closes when
+        // attention moves elsewhere — see collapse().
         render();
       });
       box.append(button);
@@ -161,6 +169,14 @@ export function createPicker(host: HTMLElement, options: PickerOptions): Picker 
   render();
 
   return {
+    collapse(): void {
+      // Nothing to put away, and no render to spend: this is called on
+      // every focus change in the form.
+      if (!expanded) return;
+      expanded = false;
+      render();
+    },
+
     choice(): PictureChoice {
       // Leaving the held picture selected must send no image_url at all.
       if (selected === HELD) return { kind: 'unchanged' };
