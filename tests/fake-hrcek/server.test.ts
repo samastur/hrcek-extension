@@ -101,6 +101,21 @@ describe('fake hrcek', () => {
     expect(Object.keys(body.error.details.fields)).toEqual(['Priority']);
   });
 
+  it('leaves a picture alone when image_url is omitted', async () => {
+    await post({
+      url: 'https://example.com/pic',
+      image_url: 'https://cdn.example.com/a.jpg',
+    });
+
+    // Like fields, and unlike every other attribute, an absent image_url
+    // changes nothing — a client that predates pictures cannot strip one.
+    const again = await post({ url: 'https://example.com/pic', title: 'Renamed' });
+
+    const entry = await again.json();
+    expect(entry.title).toBe('Renamed');
+    expect(entry.image).not.toBeNull();
+  });
+
   it('answers by-url with the held entry, 404 with HRC-CORE-0003 otherwise', async () => {
     await post({ url: 'https://example.com/held' });
     const held = await fetch(
