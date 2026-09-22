@@ -374,6 +374,41 @@ export async function startFakeHrcek(port = 0): Promise<FakeHrcek> {
         return json(res, existing === undefined ? 201 : 200, entry);
       }
 
+      const imageRoute = /^\/api\/entries\/(\d+)\/image$/.exec(requestUrl.pathname);
+      if (imageRoute !== null) {
+        const id = Number(imageRoute[1]);
+        const holder = [...entries.values()].find((candidate) => candidate.id === id);
+        // 404 when the entry is not yours — never 403, which would tell
+        // you it exists.
+        if (holder === undefined) {
+          return json(
+            res,
+            404,
+            errorBody('HRC-CORE-0003', 'The requested resource does not exist.'),
+          );
+        }
+        if (req.method === 'POST') {
+          const updated: EntryOut = {
+            ...holder,
+            image: { url: `/entries/${id}/image/`, width: 1200, height: 630 },
+            updated_at: timestamp(),
+          };
+          entries.set(updated.url, updated);
+          return json(res, 200, updated);
+        }
+        if (req.method === 'DELETE') {
+          if (holder.image === null) {
+            return json(
+              res,
+              404,
+              errorBody('HRC-CORE-0003', 'The requested resource does not exist.'),
+            );
+          }
+          entries.set(holder.url, { ...holder, image: null, updated_at: timestamp() });
+          return res.writeHead(204).end();
+        }
+      }
+
       return json(
         res,
         404,

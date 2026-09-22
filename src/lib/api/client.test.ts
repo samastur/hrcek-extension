@@ -171,6 +171,40 @@ describe('HrcekClient', () => {
 
     expect(await client().listLabels()).toEqual([]);
   });
+
+  it('uploadImage() sends multipart, not JSON, and lets fetch set the boundary', async () => {
+    server.use(
+      http.post(`${BASE}/api/entries/1/image`, async ({ request }) => {
+        // base64 would inflate every upload by a third for nothing.
+        expect(request.headers.get('Content-Type')).toMatch(
+          /^multipart\/form-data; boundary=/,
+        );
+        const form = await request.formData();
+        expect((form.get('file') as File).name).toBe('picture.jpg');
+        return HttpResponse.json({
+          ...ENTRY,
+          image: { url: '/entries/1/image/', width: 12, height: 8 },
+        });
+      }),
+    );
+
+    const entry = await client().uploadImage(
+      1,
+      new Blob(['xx'], { type: 'image/jpeg' }),
+      'picture.jpg',
+    );
+    expect(entry.image).not.toBeNull();
+  });
+
+  it('deleteImage() accepts the 204 that has no body', async () => {
+    server.use(
+      http.delete(
+        `${BASE}/api/entries/1/image`,
+        () => new HttpResponse(null, { status: 204 }),
+      ),
+    );
+    await expect(client().deleteImage(1)).resolves.toBeUndefined();
+  });
 });
 
 describe('createToken', () => {
