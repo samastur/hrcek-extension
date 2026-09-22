@@ -44,3 +44,74 @@ textarea {
 #fields .field:last-child {
   margin-bottom: 0;
 }
+
+.chips-host {
+  position: relative;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+  background: var(--raised);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  padding: 0.25rem 0.3rem;
+}
+.chips:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.72rem;
+  border: 1px solid var(--edge);
+  border-radius: 99px;
+  padding: 0.05rem 0.2rem 0.05rem 0.45rem;
+}
+.chip button {
+  background: none;
+  border: 0;
+  padding: 0 0.15rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.chip button:hover {
+  background: none;
+  color: var(--danger);
+}
+.chip-input {
+  flex: 1;
+  min-width: 5rem;
+  border: 0 !important;
+  background: none !important;
+  padding: 0.15rem !important;
+}
+.chip-input:focus-visible {
+  outline: none;
+}
+.suggestions {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  right: 0;
+  margin-top: 0.15rem;
+  background: var(--raised);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  overflow: hidden;
+  font-size: 0.78rem;
+}
+.suggestion {
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+}
+.suggestion.on,
+.suggestion:hover {
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  font-weight: 600;
+}
