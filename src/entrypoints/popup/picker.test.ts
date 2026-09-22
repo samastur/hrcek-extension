@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { createPicker } from './picker';
+import { createPicker, type HeldPicture } from './picker';
 import type { Candidate } from '../../lib/page/candidates';
 
 const CANDIDATES: Candidate[] = [
@@ -9,10 +9,17 @@ const CANDIDATES: Candidate[] = [
   { url: 'https://e.test/b.jpg', width: 400, height: 300, fromHead: false },
 ];
 
-function mount(candidates = CANDIDATES, held: string | null = null) {
+/** What main.ts hands over: an object URL over bytes fetched with the token. */
+const HELD: HeldPicture = { src: 'blob:held-picture' };
+
+function mount(
+  candidates = CANDIDATES,
+  held: HeldPicture | null = null,
+  existing = held !== null,
+) {
   const host = document.createElement('div');
   document.body.append(host);
-  const picker = createPicker(host, { candidates, held });
+  const picker = createPicker(host, { candidates, held, existing });
   return { host, picker };
 }
 
@@ -42,22 +49,60 @@ describe('createPicker', () => {
 
   it('opens collapsed on an entry that already holds a picture', () => {
     // A picture already held counts as a choice already made.
-    const { host, picker } = mount(CANDIDATES, 'https://e.test/held.jpg');
+    const { host, picker } = mount(CANDIDATES, HELD);
     expect(host.querySelector('.hero')).toBeNull();
     expect(picker.choice()).toEqual({ kind: 'unchanged' });
   });
 
   it('offers none as the first tile, so clearing is the same gesture as choosing', () => {
-    const { host, picker } = mount(CANDIDATES, 'https://e.test/held.jpg');
+    const { host, picker } = mount(CANDIDATES, HELD);
     host.querySelector<HTMLButtonElement>('.tile.none')!.click();
     expect(picker.choice()).toEqual({ kind: 'none' });
   });
 
   it('reports unchanged when the held picture is chosen again', () => {
-    const { host, picker } = mount(CANDIDATES, 'https://e.test/held.jpg');
+    const { host, picker } = mount(CANDIDATES, HELD);
     host.querySelector<HTMLButtonElement>('.tile.none')!.click();
     host.querySelector<HTMLButtonElement>('.tile.held')!.click();
     expect(picker.choice()).toEqual({ kind: 'unchanged' });
+  });
+
+  it('leaves an entry that has no picture without one, however loudly the page offers', () => {
+    // Reopening a saved entry to fix a typo must not attach the page's
+    // og:image behind your back. Preselecting is for a page not yet saved.
+    const { host, picker } = mount(CANDIDATES, null, true);
+    expect(picker.choice()).toEqual({ kind: 'unchanged' });
+    // Nothing is proposed, so nothing opens large; "no picture" is the
+    // tile already on.
+    expect(host.querySelector('.hero')).toBeNull();
+    expect(host.querySelector('.tile.none')!.className).toContain('on');
+  });
+
+  it('still offers that entry the page’s pictures, one click away', () => {
+    const { host, picker } = mount(CANDIDATES, null, true);
+    host.querySelectorAll<HTMLButtonElement>('.tile')[1]!.click();
+    expect(picker.choice()).toEqual({ kind: 'url', url: 'https://e.test/og.jpg' });
+  });
+
+  it('shows the held picture from the bytes it was given, not from its address', () => {
+    // The entry's own image address answers only to the owning account,
+    // and an <img> cannot present a token — so what arrives here is an
+    // object URL over bytes already fetched.
+    const { host } = mount(CANDIDATES, HELD);
+    const tile = host.querySelector<HTMLButtonElement>('.tile.held')!;
+    expect(tile.querySelector('img')!.getAttribute('src')).toBe('blob:held-picture');
+  });
+
+  it('says the entry has a picture even when its bytes could not be fetched', () => {
+    // Better than an <img> that can only ever render broken — and the
+    // choice to keep or drop it still works.
+    const { host, picker } = mount(CANDIDATES, { src: null });
+    const tile = host.querySelector<HTMLButtonElement>('.tile.held')!;
+    expect(tile.querySelector('img')).toBeNull();
+    expect(tile.textContent).toBe('kept');
+    expect(picker.choice()).toEqual({ kind: 'unchanged' });
+    host.querySelector<HTMLButtonElement>('.tile.none')!.click();
+    expect(picker.choice()).toEqual({ kind: 'none' });
   });
 
   it('renders nothing at all when the page offered no picture and none is held', () => {

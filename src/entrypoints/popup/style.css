@@ -162,6 +162,11 @@ textarea {
   object-fit: cover;
   display: block;
 }
+/* The entry has a picture, but its bytes could not be fetched — the tile
+   says so rather than pretending at an image that cannot load. */
+.tile.unshowable {
+  border-style: dashed;
+}
 .tile.on {
   outline: 2px solid var(--accent);
   outline-offset: 1px;

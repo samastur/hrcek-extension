@@ -14,10 +14,10 @@ import {
   type FormState,
 } from './form';
 import { createChipInput, type ChipInput } from './chips';
-import { createPicker, type Picker } from './picker';
+import { createPicker, type HeldPicture, type Picker } from './picker';
 import type { Settings } from '../../lib/settings';
 import type { FieldInput } from '../../lib/fields';
-import type { FieldOut } from '../../lib/api/types';
+import type { FieldOut, ImageOut } from '../../lib/api/types';
 import type { Candidate } from '../../lib/page/candidates';
 import './style.css';
 
@@ -38,8 +38,36 @@ let chips: ChipInput | null = null;
 let picker: Picker | null = null;
 /** Harvested once in main(); what the page itself offers. */
 let candidates: Candidate[] = [];
-/** The absolute address of the picture the entry already holds, if any. */
-let heldPictureUrl: string | null = null;
+/** The picture the entry already holds, if any, ready to be shown. */
+let held: HeldPicture | null = null;
+/** The object URL behind `held.src`, kept so it can be revoked. */
+let heldObjectUrl: string | null = null;
+
+/**
+ * What to show the held picture with. The entry only carries an address,
+ * and that address answers to the owning account alone — an `<img>`
+ * cannot present a bearer token, and this extension holds no cookies —
+ * so the bytes are fetched here and handed over as an object URL.
+ *
+ * A fetch that fails is not worth an error: the tile falls back to saying
+ * the entry has a picture without showing it, and the entry is otherwise
+ * untouched.
+ */
+async function loadHeldPicture(image: ImageOut | null | undefined): Promise<void> {
+  // Whatever was shown before is about to be replaced; let it go.
+  if (heldObjectUrl !== null) URL.revokeObjectURL(heldObjectUrl);
+  heldObjectUrl = null;
+  if (image == null || client === null) {
+    held = null;
+    return;
+  }
+  try {
+    heldObjectUrl = URL.createObjectURL(await client.fetchImage(image.url));
+    held = { src: heldObjectUrl };
+  } catch {
+    held = { src: null };
+  }
+}
 
 async function getPageInfo(): Promise<{ url: string; title: string }> {
   // e2e builds only: Playwright opens the popup as an ordinary tab, which
@@ -161,7 +189,7 @@ function renderForm(form: FormState, existing: boolean): void {
   document.querySelector<HTMLInputElement>('#title')!.value = form.title;
   document.querySelector<HTMLTextAreaElement>('#notes')!.value = form.notes;
   const pictureHost = document.querySelector<HTMLDivElement>('#picture')!;
-  picker = createPicker(pictureHost, { candidates, held: heldPictureUrl });
+  picker = createPicker(pictureHost, { candidates, held, existing });
   // The row is absent, not empty, when the page offered nothing.
   if (pictureHost.innerHTML === '') {
     document.querySelector<HTMLDivElement>('#picture-field')!.hidden = true;
@@ -221,8 +249,7 @@ async function save(): Promise<void> {
       const existing = pageUrl.length > 0 ? await loadExisting(client, pageUrl) : null;
       if (existing !== null) {
         lookupFailed = false;
-        heldPictureUrl =
-          existing.image == null ? null : `${settings.serverUrl}${existing.image.url}`;
+        await loadHeldPicture(existing.image);
         renderForm(entryToForm(existing, definitions), true);
         setStatus(
           'error',
@@ -287,8 +314,7 @@ async function main(): Promise<void> {
   try {
     const existing = url.length > 0 ? await loadExisting(client, url) : null;
     if (existing !== null) {
-      heldPictureUrl =
-        existing.image == null ? null : `${settings.serverUrl}${existing.image.url}`;
+      await loadHeldPicture(existing.image);
       renderForm(entryToForm(existing, definitions), true);
     } else {
       renderForm(emptyForm(url, title, definitions), false);

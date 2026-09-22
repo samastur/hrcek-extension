@@ -1,10 +1,27 @@
 import type { Candidate } from '../../lib/page/candidates';
 import type { PictureChoice } from '../../lib/picture';
 
+/** The picture an entry already holds. */
+export interface HeldPicture {
+  /**
+   * Something an `<img>` can show it with — an object URL over bytes
+   * fetched with the token. Null when those bytes could not be had: the
+   * entry still has a picture, this popup just cannot draw it, and a tile
+   * that says so beats an `<img>` that will only ever render broken.
+   */
+  src: string | null;
+}
+
 export interface PickerOptions {
   candidates: Candidate[];
-  /** The address of the picture the entry already holds, if any. */
-  held: string | null;
+  /** The picture the entry already holds, or null if it holds none. */
+  held: HeldPicture | null;
+  /**
+   * Whether this address is already saved. Distinct from `held`: an entry
+   * that deliberately has no picture is `held: null, existing: true`, and
+   * must not quietly gain one when somebody reopens it to fix a typo.
+   */
+  existing: boolean;
 }
 
 export interface Picker {
@@ -14,8 +31,17 @@ export interface Picker {
 /** How many tiles the strip shows at once. */
 const WINDOW = 4;
 
+/**
+ * The key standing for "the picture it already has". Not an address: the
+ * held picture is shown from an object URL, which has nothing to do with
+ * wherever the server originally fetched it from. A candidate cannot
+ * collide with it — those are all `new URL(…).href`, and none of them
+ * begins with a space.
+ */
+const HELD = ' held';
+
 export function createPicker(host: HTMLElement, options: PickerOptions): Picker {
-  const { candidates, held } = options;
+  const { candidates, held, existing } = options;
 
   // Nothing to offer and nothing to drop: the row is simply absent.
   if (candidates.length === 0 && held === null) {
@@ -23,32 +49,33 @@ export function createPicker(host: HTMLElement, options: PickerOptions): Picker 
     return { choice: () => ({ kind: 'unchanged' }) };
   }
 
-  /** null means "no picture"; the held address means "leave it alone". */
-  let selected: string | null = held ?? candidates[0]?.url ?? null;
-  // A picture already held counts as a choice already made, so it opens
-  // collapsed on what it holds. A fresh page opens on its proposal.
-  let expanded = held === null;
+  /** null means "no picture"; HELD means "leave what it has alone". */
+  let selected: string | null =
+    held !== null ? HELD : existing ? null : (candidates[0]?.url ?? null);
+  // Opens large only on a proposal — a fresh page's first candidate. A
+  // picture already held, or an entry that chose to have none, is a
+  // choice already made, and opens collapsed on it.
+  let expanded = selected !== null && selected !== HELD;
   let start = 0;
 
-  type Tile = { key: string; url: string | null; className: string; label: string };
+  type Tile = { key: string; src: string | null; className: string; label: string };
 
   function tiles(): Tile[] {
     const list: Tile[] = [
-      { key: 'none', url: null, className: 'tile none', label: 'No picture' },
+      { key: 'none', src: null, className: 'tile none', label: 'No picture' },
     ];
     if (held !== null) {
       list.push({
-        key: held,
-        url: held,
-        className: 'tile held',
+        key: HELD,
+        src: held.src,
+        className: held.src === null ? 'tile held unshowable' : 'tile held',
         label: 'The picture it has',
       });
     }
     for (const candidate of candidates) {
-      if (candidate.url === held) continue;
       list.push({
         key: candidate.url,
-        url: candidate.url,
+        src: candidate.url,
         className: 'tile',
         label: candidate.fromHead ? 'Declared by the page' : 'From the page',
       });
@@ -73,17 +100,18 @@ export function createPicker(host: HTMLElement, options: PickerOptions): Picker 
     // interpolated into markup — a candidate's address is untrusted, and a
     // template string would let a stray `"` break out of the attribute.
     if (expanded) {
+      const source = selected === HELD ? (held?.src ?? null) : selected;
       let hero: HTMLElement;
-      if (selected !== null) {
+      if (source !== null) {
         const image = document.createElement('img');
         image.className = 'hero';
-        image.src = selected;
+        image.src = source;
         image.alt = '';
         hero = image;
       } else {
         const empty = document.createElement('div');
         empty.className = 'hero empty';
-        empty.textContent = 'No picture';
+        empty.textContent = selected === HELD ? 'The picture it has' : 'No picture';
         hero = empty;
       }
       host.insertBefore(hero, host.firstChild);
@@ -97,16 +125,16 @@ export function createPicker(host: HTMLElement, options: PickerOptions): Picker 
         tile.className + (tile.key === (selected ?? 'none') ? ' on' : '');
       button.title = tile.label;
       button.setAttribute('aria-label', tile.label);
-      if (tile.url === null) {
-        button.textContent = 'none';
+      if (tile.src === null) {
+        button.textContent = tile.key === HELD ? 'kept' : 'none';
       } else {
         const image = document.createElement('img');
-        image.src = tile.url;
+        image.src = tile.src;
         image.alt = '';
         button.append(image);
       }
       button.addEventListener('click', () => {
-        selected = tile.url;
+        selected = tile.key === 'none' ? null : tile.key;
         // Choosing is the moment the hero has done its job.
         expanded = false;
         render();
@@ -134,12 +162,12 @@ export function createPicker(host: HTMLElement, options: PickerOptions): Picker 
 
   return {
     choice(): PictureChoice {
+      // Leaving the held picture selected must send no image_url at all.
+      if (selected === HELD) return { kind: 'unchanged' };
       if (selected === null) {
         // Nothing to clear if there was nothing there.
         return held === null ? { kind: 'unchanged' } : { kind: 'none' };
       }
-      // Leaving the held picture selected must send no image_url at all.
-      if (selected === held) return { kind: 'unchanged' };
       return { kind: 'url', url: selected };
     },
   };
