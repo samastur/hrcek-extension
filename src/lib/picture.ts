@@ -1,4 +1,5 @@
 import type { HrcekClient } from './api/client';
+import { HrcekApiError, HrcekNetworkError } from './api/errors';
 import type { EntryOut } from './api/types';
 
 /** The server's limit. Above it, the address stands in for the bytes. */
@@ -43,9 +44,14 @@ function filenameFor(url: string): string {
 }
 
 function messageFor(error: unknown): string {
-  // HrcekApiError carries the server's translated message; HrcekNetworkError
-  // and any other Error still have something worth showing.
-  return error instanceof Error ? error.message : 'The picture could not be attached.';
+  // HrcekApiError carries the server's translated, person-facing message;
+  // HrcekNetworkError is authored deliberately by this client. Anything
+  // else is a raw runtime message — developer-facing, untranslated, and
+  // sometimes actively unhelpful — so it gets the safe fallback instead.
+  if (error instanceof HrcekApiError || error instanceof HrcekNetworkError) {
+    return error.message;
+  }
+  return 'The picture could not be attached.';
 }
 
 /**
