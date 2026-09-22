@@ -253,7 +253,7 @@ test('mints a token from credentials, then saves with it', async ({
   await expect(popup.locator('#status')).toContainText('Saved.');
 });
 
-test('offers the page’s picture and saves it with the entry', async ({
+test('hides the picture field when the page offered nothing, and still saves', async ({
   context,
   extensionId,
 }) => {
@@ -292,6 +292,8 @@ test('keeps the tags and fields an entry holds when only the title changes', asy
   const popup = await openPopup(context, extensionId, address, 'ignored');
   await expect(popup.locator('.chip')).toHaveCount(1);
   await popup.fill('#title', 'After');
+  await popup.locator('#fields').click();
+  await popup.locator('[data-field="Price"]').fill('99');
   await popup.click('#save');
   await expect(popup.locator('#status')).toContainText('Updated.');
 
@@ -301,9 +303,12 @@ test('keeps the tags and fields an entry holds when only the title changes', asy
     })
   ).json();
   expect(entry.title).toBe('After');
-  // POST replaces, so these only survive because the form sent them back.
+  // POST replaces entry attributes, so the tag only survives because the
+  // form resent it. fields is PATCHED, not replaced, so a stale Price would
+  // pass even with no field wiring at all — proving that path instead
+  // requires actually changing the value and checking the new one landed.
   expect(entry.tags).toEqual(['diving']);
-  expect(entry.fields).toEqual({ Price: '129' });
+  expect(entry.fields).toEqual({ Price: '99' });
 });
 
 test('says what to do when the server cannot mint tokens', async ({
