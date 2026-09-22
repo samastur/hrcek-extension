@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { HrcekClient } from '../../src/lib/api/client';
-import { loadExisting } from '../../src/lib/save';
+import { loadExisting, submitSave } from '../../src/lib/save';
+// A constant, not behaviour: the fake refuses this address, and a real
+// Hrček cannot resolve it either, so both answer HRC-IMAGE-*.
+import { UNFETCHABLE_IMAGE_URL } from '../fake-hrcek/server';
 
 export interface ContractTarget {
   baseUrl: string;
@@ -134,6 +137,46 @@ export function runContractSuite(
       const second = await client().saveEntry({ url: variant });
       expect(second.status).toBe('updated');
       expect(second.entry.id).toBe(first.entry.id);
+    });
+
+    it('refuses the whole save when it will not fetch the picture', async () => {
+      // The fetch happens inside save_entry's transaction, so an address
+      // the server will not go to takes the entry down with it. This is
+      // the behaviour the popup has to survive, not an edge case: the
+      // bytes path only works for a picture on the page's own host.
+      const url = testUrl('picture-refused');
+      const error = await client()
+        .saveEntry({ url, title: 'has a picture', image_url: UNFETCHABLE_IMAGE_URL })
+        .then(
+          () => null,
+          (e: { code?: string; status?: number }) => e,
+        );
+
+      expect(error?.status).toBe(422);
+      expect(error?.code).toMatch(/^HRC-IMAGE-/);
+      // Nothing was left behind for a client to find later.
+      expect(await loadExisting(client(), url)).toBeNull();
+    });
+
+    it('saves the entry anyway, through submitSave, when the picture is refused', async () => {
+      // A picture never fails the entry. submitSave posts again without
+      // image_url and hands back the server's account of the picture.
+      const url = testUrl('picture-never-fails-the-entry');
+      const outcome = await submitSave(client(), {
+        url,
+        title: 'A watch',
+        notes: '38mm',
+        tags: ['watches'],
+        fields: {},
+        imageUrl: UNFETCHABLE_IMAGE_URL,
+      });
+
+      expect(outcome.status).toBe('created');
+      expect(outcome.pictureTrouble).toBeTruthy();
+      expect(outcome.entry.title).toBe('A watch');
+      expect(outcome.entry.tags).toEqual(['watches']);
+      expect(outcome.entry.image).toBeNull();
+      expect((await loadExisting(client(), url))?.title).toBe('A watch');
     });
 
     it('describes the fields an entry may carry', async () => {
