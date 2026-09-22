@@ -59,15 +59,8 @@ export function createPicker(host: HTMLElement, options: PickerOptions): Picker 
   function render(): void {
     const all = tiles();
     const windowed = all.slice(start, start + WINDOW);
-    const hero =
-      expanded && selected !== null
-        ? `<img class="hero" src="${selected}" alt="" />`
-        : expanded
-          ? '<div class="hero empty">No picture</div>'
-          : '';
 
     host.innerHTML = `
-      ${hero}
       <div class="strip">
         <button type="button" class="step" data-step="-1" ${start === 0 ? 'disabled' : ''} aria-label="Earlier pictures">‹</button>
         <div class="tiles"></div>
@@ -75,6 +68,26 @@ export function createPicker(host: HTMLElement, options: PickerOptions): Picker 
         ${expanded ? '' : '<button type="button" class="expand quiet" aria-label="Show the picture larger">⤢</button>'}
       </div>
     `;
+
+    // Built as elements with `src` assigned as a property, never
+    // interpolated into markup — a candidate's address is untrusted, and a
+    // template string would let a stray `"` break out of the attribute.
+    if (expanded) {
+      let hero: HTMLElement;
+      if (selected !== null) {
+        const image = document.createElement('img');
+        image.className = 'hero';
+        image.src = selected;
+        image.alt = '';
+        hero = image;
+      } else {
+        const empty = document.createElement('div');
+        empty.className = 'hero empty';
+        empty.textContent = 'No picture';
+        hero = empty;
+      }
+      host.insertBefore(hero, host.firstChild);
+    }
 
     const box = host.querySelector<HTMLDivElement>('.tiles')!;
     for (const tile of windowed) {
