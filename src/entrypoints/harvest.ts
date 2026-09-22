@@ -6,8 +6,8 @@ import type { RawCandidate } from '../lib/page/candidates';
  * business running on every page you load.
  *
  * It answers a message rather than a return value: MV2 and MV3 disagree
- * about what an injected file's result is, and a message is the same on
- * both.
+ * about what an injected file's result is. The message itself is not the
+ * same on both browsers, though — see the listener at the bottom.
  */
 const HEAD_SELECTORS = [
   'meta[property="og:image"]',
@@ -61,8 +61,22 @@ export default defineUnlistedScript(() => {
   if (scope[flag] === true) return;
   scope[flag] = true;
 
-  browser.runtime.onMessage.addListener((message: unknown) => {
-    if ((message as { type?: string }).type !== 'hrcek:harvest') return undefined;
-    return Promise.resolve({ candidates: collect() });
-  });
+  browser.runtime.onMessage.addListener(
+    (
+      message: unknown,
+      _sender: unknown,
+      sendResponse: (response: { candidates: RawCandidate[] }) => void,
+    ) => {
+      // Not ours: answer undefined synchronously, which leaves the message
+      // to whatever else is listening rather than swallowing it.
+      if ((message as { type?: string }).type !== 'hrcek:harvest') return undefined;
+      // sendResponse + `return true`, never a returned Promise. Answering
+      // with a Promise is a Firefox (and webextension-polyfill) extra, and
+      // WXT ships no polyfill: on Chrome the returned value is discarded,
+      // the channel closes, and the caller is handed undefined. This form
+      // works on both.
+      sendResponse({ candidates: collect() });
+      return true;
+    },
+  );
 });

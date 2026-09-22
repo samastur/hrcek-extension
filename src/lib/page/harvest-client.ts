@@ -6,6 +6,12 @@ import { rankCandidates, type Candidate, type RawCandidate } from './candidates'
  * What this page offers, ranked. Any failure answers an empty list: a
  * page that cannot be read — a PDF, a privileged page, a tab that closed
  * — simply offers no picture, and that is not an error worth showing.
+ *
+ * Asking is the same call on both browsers; answering is not. The
+ * injected script must reply with `sendResponse` and `return true`,
+ * because Chrome discards a Promise returned from `onMessage` and hands
+ * this call `undefined` — which is indistinguishable here from a page
+ * with no pictures. See the listener in `entrypoints/harvest.ts`.
  */
 export async function harvestCandidates(tabId: number): Promise<Candidate[]> {
   try {
