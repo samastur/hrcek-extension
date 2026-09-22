@@ -85,6 +85,22 @@ async function getPageInfo(): Promise<{ url: string; title: string }> {
   return { url: tab?.url ?? '', title: tab?.title ?? '' };
 }
 
+/**
+ * e2e builds only, and null in every other build: the popup is its own
+ * tab under Playwright, so there is no page to harvest and `?candidate=`
+ * stands in for what one would have offered. Same seam, and the same
+ * build-time constant, as the `?url=` above.
+ */
+function seededCandidates(): Candidate[] | null {
+  if (import.meta.env.MODE === 'e2e') {
+    const seeded = new URLSearchParams(window.location.search).get('candidate');
+    // Shaped like a head declaration, which is what a page most often
+    // offers: no dimensions to be had until something loads it.
+    if (seeded !== null) return [{ url: seeded, width: 0, height: 0, fromHead: true }];
+  }
+  return null;
+}
+
 function setStatus(kind: 'info' | 'success' | 'error', text: string): void {
   const status = document.querySelector<HTMLParagraphElement>('#status')!;
   status.dataset.kind = kind;
@@ -319,8 +335,13 @@ async function main(): Promise<void> {
   client = clientFromSettings(settings);
   const { url, title } = await getPageInfo();
   pageUrl = url;
-  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-  candidates = tab?.id === undefined ? [] : await harvestCandidates(tab.id);
+  const seeded = seededCandidates();
+  if (seeded !== null) {
+    candidates = seeded;
+  } else {
+    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+    candidates = tab?.id === undefined ? [] : await harvestCandidates(tab.id);
+  }
   // Not fatal: without them the form falls back to the entry's own keys,
   // which is enough to show and re-send what the entry already holds.
   definitions = await client.listFields().then(
