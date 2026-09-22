@@ -121,6 +121,48 @@ describe('fake hrcek', () => {
     expect(entry.image).not.toBeNull();
   });
 
+  it('answers 404, never 403, for an image route on an entry nobody holds', async () => {
+    // A 403 would tell you the entry exists.
+    const response = await fetch(`${fake.url}/api/entries/999/image`, {
+      method: 'POST',
+      headers: AUTH,
+    });
+    expect(response.status).toBe(404);
+    expect((await response.json()).error.code).toBe('HRC-CORE-0003');
+  });
+
+  it('answers 404 for a delete when there was no picture to remove', async () => {
+    const created = await post({ url: 'https://example.com/no-pic' });
+    const { id } = await created.json();
+
+    const response = await fetch(`${fake.url}/api/entries/${id}/image`, {
+      method: 'DELETE',
+      headers: AUTH,
+    });
+    expect(response.status).toBe(404);
+    expect((await response.json()).error.code).toBe('HRC-CORE-0003');
+  });
+
+  it('deletes a held picture with 204, and the entry then shows no image', async () => {
+    const created = await post({
+      url: 'https://example.com/has-pic',
+      image_url: 'https://cdn.example.com/a.jpg',
+    });
+    const { id } = await created.json();
+
+    const response = await fetch(`${fake.url}/api/entries/${id}/image`, {
+      method: 'DELETE',
+      headers: AUTH,
+    });
+    expect(response.status).toBe(204);
+
+    const held = await fetch(
+      `${fake.url}/api/entries/by-url/?url=${encodeURIComponent('https://example.com/has-pic')}`,
+      { headers: AUTH },
+    );
+    expect((await held.json()).image).toBeNull();
+  });
+
   it('answers by-url with the held entry, 404 with HRC-CORE-0003 otherwise', async () => {
     await post({ url: 'https://example.com/held' });
     const held = await fetch(
