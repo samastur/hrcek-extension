@@ -308,6 +308,15 @@ async function save(): Promise<void> {
       // otherwise, which is the documented way to leave a picture alone.
       ...(choice.kind === 'url' && bytes === null ? { imageUrl: choice.url } : {}),
     });
+    // The entry exists on the server now, regardless of what the picture
+    // does below — the tick reports the entry, not the picture. Said now,
+    // not when the cached answer expires. This runs before the picture
+    // work precisely so that both of the exits below mark it held.
+    void browser.runtime.sendMessage({
+      type: 'hrcek:saved',
+      url: outcome.entry.url,
+      held: true,
+    });
     // image_url is fetched inside the save's own transaction, so an
     // address the server will not go to takes the save with it. submitSave
     // posts again without the picture when that happens and reports the

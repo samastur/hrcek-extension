@@ -22,6 +22,12 @@ app.innerHTML = `
       <label for="token">API token</label>
       <input id="token" type="password" placeholder="hrcek_…" autocomplete="off" />
     </div>
+    <div class="field">
+      <label for="show-saved"><input type="checkbox" id="show-saved" /> Show whether a page is already saved</label>
+      <p>The toolbar ticks the hamster on pages you have saved. Doing so
+         asks your Hrček about every address you visit. Turn it off and the
+         toolbar only says whether the extension is configured.</p>
+    </div>
     <p>Paste one from <a id="account-link" href="#" target="_blank">your clients page</a>,
        or let Hrček make one below.</p>
     <button type="submit" id="save">Save</button>
@@ -51,6 +57,9 @@ const tokenInput = document.querySelector<HTMLInputElement>('#token')!;
 const identifierInput = document.querySelector<HTMLInputElement>('#identifier')!;
 const passwordInput = document.querySelector<HTMLInputElement>('#password')!;
 const accountLink = document.querySelector<HTMLAnchorElement>('#account-link')!;
+const showSavedInput = document.querySelector<HTMLInputElement>('#show-saved')!;
+// A first visit has no stored settings, so restore() never runs; default on.
+showSavedInput.checked = true;
 
 function setStatus(kind: 'info' | 'success' | 'error', text: string): void {
   const status = document.querySelector<HTMLParagraphElement>('#status')!;
@@ -103,7 +112,11 @@ async function save(): Promise<void> {
     const serverUrl = normalizeServerUrl(serverUrlInput.value);
     const granted = await requestOriginPermission(serverUrl);
     const token = tokenInput.value.trim();
-    await saveSettings({ serverUrl, token: token.length > 0 ? token : null });
+    await saveSettings({
+      serverUrl,
+      token: token.length > 0 ? token : null,
+      showSavedState: showSavedInput.checked,
+    });
     setStatus(
       'success',
       granted
@@ -142,7 +155,11 @@ async function createToken(): Promise<void> {
     );
     passwordInput.value = ''; // used once, never kept
     tokenInput.value = created.token;
-    await saveSettings({ serverUrl, token: created.token });
+    await saveSettings({
+      serverUrl,
+      token: created.token,
+      showSavedState: showSavedInput.checked,
+    });
     setStatus('success', `Saved. Token created as "${created.name}".`);
   } catch (error) {
     setStatus('error', messageFor(error));
@@ -174,6 +191,7 @@ async function restore(): Promise<void> {
   serverUrlInput.value = settings.serverUrl;
   accountLink.href = `${settings.serverUrl}/accounts/me/clients/`;
   tokenInput.value = settings.token ?? '';
+  showSavedInput.checked = settings.showSavedState;
   // Minting is the first-run path; once a token is held, fold it away.
   if (settings.token !== null) {
     document.querySelector<HTMLDetailsElement>('#create-token')!.open = false;

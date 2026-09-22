@@ -15,11 +15,13 @@ describe('settings', () => {
     await saveSettings({
       serverUrl: 'https://hrcek.example.com',
       token: 'hrcek_abc',
+      showSavedState: true,
     });
 
     expect(await loadSettings()).toEqual({
       serverUrl: 'https://hrcek.example.com',
       token: 'hrcek_abc',
+      showSavedState: true,
     });
   });
 
@@ -27,6 +29,7 @@ describe('settings', () => {
     await saveSettings({
       serverUrl: '  https://hrcek.example.com//  ',
       token: null,
+      showSavedState: true,
     });
 
     expect((await loadSettings())?.serverUrl).toBe('https://hrcek.example.com');
@@ -46,7 +49,26 @@ describe('settings', () => {
     expect(await loadSettings()).toEqual({
       serverUrl: 'https://hrcek.example.com',
       token: null,
+      showSavedState: true,
     });
+  });
+
+  it('shows the saved state by default, including in settings written before the switch existed', async () => {
+    await fakeBrowser.storage.local.set({
+      settings: { serverUrl: 'https://hrcek.example.com', token: 'hrcek_abc' },
+    });
+
+    expect((await loadSettings())?.showSavedState).toBe(true);
+  });
+
+  it('keeps the switch off once it has been turned off', async () => {
+    await saveSettings({
+      serverUrl: 'https://hrcek.example.com',
+      token: 'hrcek_abc',
+      showSavedState: false,
+    });
+
+    expect((await loadSettings())?.showSavedState).toBe(false);
   });
 });
 
