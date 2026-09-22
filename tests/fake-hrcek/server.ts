@@ -350,8 +350,11 @@ export async function startFakeHrcek(port = 0): Promise<FakeHrcek> {
         if ('status' in applied) return json(res, applied.status, applied.body);
 
         const now = timestamp();
+        // One id for both the entry and its image URL. Reading
+        // `nextId` twice would read it before and after the increment.
+        const id = existing?.id ?? nextId++;
         const entry: EntryOut = {
-          id: existing?.id ?? nextId++,
+          id,
           url: key,
           title: body.title ?? '',
           notes: body.notes ?? '',
@@ -362,11 +365,7 @@ export async function startFakeHrcek(port = 0): Promise<FakeHrcek> {
           // cannot strip one by saving an entry.
           image:
             typeof body.image_url === 'string' && body.image_url.length > 0
-              ? {
-                  url: `/entries/${existing?.id ?? nextId}/image/`,
-                  width: 1200,
-                  height: 630,
-                }
+              ? { url: `/entries/${id}/image/`, width: 1200, height: 630 }
               : (existing?.image ?? null),
           created_at: existing?.created_at ?? now,
           updated_at: now,

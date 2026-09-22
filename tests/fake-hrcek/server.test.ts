@@ -102,10 +102,15 @@ describe('fake hrcek', () => {
   });
 
   it('leaves a picture alone when image_url is omitted', async () => {
-    await post({
+    const created = await post({
       url: 'https://example.com/pic',
       image_url: 'https://cdn.example.com/a.jpg',
     });
+
+    // The image URL must name the entry that holds it. Reading the id
+    // counter twice would give a new entry a URL for the next one.
+    const createdBody = await created.json();
+    expect(createdBody.image.url).toBe(`/entries/${createdBody.id}/image/`);
 
     // Like fields, and unlike every other attribute, an absent image_url
     // changes nothing — a client that predates pictures cannot strip one.
