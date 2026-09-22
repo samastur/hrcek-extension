@@ -18,6 +18,21 @@ export const MINTED_TOKEN_PREFIX = 'hrcek_minted_';
 /** Both the default and the maximum, as the real server publishes it. */
 const LABELS_PER_PAGE = 1000;
 
+/**
+ * An address no Hrček can fetch, standing in for the everyday cases — a
+ * signed URL, a referer check, a host that has gone away. Subdomains of
+ * `example.com` never resolve, so the real server answers HRC-IMAGE-0006
+ * for this one too, with `details.host`.
+ */
+export const UNFETCHABLE_IMAGE_HOST = 'unfetchable.example.com';
+export const UNFETCHABLE_IMAGE_URL = `https://${UNFETCHABLE_IMAGE_HOST}/picture.jpg`;
+
+/** One transparent pixel, which is all any of this needs to be a picture. */
+const PIXEL_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+  'base64',
+);
+
 /** A fresh Hrček account's default fields, in the shape GET /api/fields/ serves. */
 const ACCOUNT_FIELDS = [
   { name: 'Price', kind: 'number' as const, options: [] as string[] },
@@ -58,6 +73,15 @@ function isValidUrl(raw: string): boolean {
   try {
     const parsed = new URL(raw.trim());
     return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+/** Whether this is the address the fake refuses to fetch. */
+function isUnfetchable(imageUrl: string): boolean {
+  try {
+    return new URL(imageUrl).hostname.endsWith(UNFETCHABLE_IMAGE_HOST);
   } catch {
     return false;
   }
@@ -349,6 +373,21 @@ export async function startFakeHrcek(port = 0): Promise<FakeHrcek> {
         const applied = applyFields(existing?.fields ?? {}, body.fields ?? {});
         if ('status' in applied) return json(res, applied.status, applied.body);
 
+        const imageUrl = typeof body.image_url === 'string' ? body.image_url : '';
+        if (imageUrl.length > 0 && isUnfetchable(imageUrl)) {
+          // The fetch happens inside save_entry's transaction, so an
+          // address the server will not go to fails the whole call — and
+          // nothing is written. Nothing is written here either: that is
+          // the half of the behaviour a client has to survive.
+          return json(
+            res,
+            422,
+            errorBody('HRC-IMAGE-0006', 'That image could not be fetched.', {
+              host: new URL(imageUrl).hostname,
+            }),
+          );
+        }
+
         const now = timestamp();
         // One id for both the entry and its image URL. Reading
         // `nextId` twice would read it before and after the increment.
@@ -364,7 +403,7 @@ export async function startFakeHrcek(port = 0): Promise<FakeHrcek> {
           // image_url changes nothing — a client that predates pictures
           // cannot strip one by saving an entry.
           image:
-            typeof body.image_url === 'string' && body.image_url.length > 0
+            imageUrl.length > 0
               ? { url: `/entries/${id}/image/`, width: 1200, height: 630 }
               : (existing?.image ?? null),
           created_at: existing?.created_at ?? now,
@@ -372,6 +411,30 @@ export async function startFakeHrcek(port = 0): Promise<FakeHrcek> {
         };
         entries.set(key, entry);
         return json(res, existing === undefined ? 201 : 200, entry);
+      }
+
+      // The serving view an entry's `image.url` points at. It sits outside
+      // /api/ and, like everything past checkAuth, answers only to a
+      // request carrying the token — which is why a plain <img src> is no
+      // way to show it.
+      const servingRoute = /^\/entries\/(\d+)\/image\/$/.exec(requestUrl.pathname);
+      if (servingRoute !== null && req.method === 'GET') {
+        const id = Number(servingRoute[1]);
+        const holder = [...entries.values()].find(
+          (candidate) => candidate.id === id && candidate.image !== null,
+        );
+        if (holder === undefined) {
+          return json(
+            res,
+            404,
+            errorBody('HRC-CORE-0003', 'The requested resource does not exist.'),
+          );
+        }
+        res.writeHead(200, {
+          'Content-Type': 'image/png',
+          'Content-Length': PIXEL_PNG.length,
+        });
+        return res.end(PIXEL_PNG);
       }
 
       const imageRoute = /^\/api\/entries\/(\d+)\/image$/.exec(requestUrl.pathname);
