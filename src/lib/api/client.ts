@@ -100,6 +100,18 @@ export class HrcekClient {
     };
   }
 
+  /** Replaces whatever picture the entry had. Multipart, not JSON. */
+  async uploadImage(id: number, bytes: Blob, filename: string): Promise<EntryOut> {
+    const form = new FormData();
+    form.set('file', bytes, filename);
+    return (await this.request('POST', `/api/entries/${id}/image`, form)).json();
+  }
+
+  /** The only way to remove a picture; a POST cannot do it. 204, no body. */
+  async deleteImage(id: number): Promise<void> {
+    await this.request('DELETE', `/api/entries/${id}/image`);
+  }
+
   private async request(
     method: string,
     path: string,
@@ -107,9 +119,12 @@ export class HrcekClient {
     options: { anonymous?: boolean } = {},
   ): Promise<Response> {
     const authenticated = !options.anonymous && this.token !== null;
+    const isForm = body instanceof FormData;
     const headers: Record<string, string> = {
       Accept: 'application/json',
-      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      // FormData sets its own Content-Type, boundary and all. Setting it
+      // by hand produces a body the server cannot parse.
+      ...(body !== undefined && !isForm ? { 'Content-Type': 'application/json' } : {}),
       ...(authenticated ? { Authorization: `Bearer ${this.token}` } : {}),
     };
     let response: Response;
@@ -121,7 +136,12 @@ export class HrcekClient {
         // origin check from an extension, so bearer tokens are the only
         // credential this client understands.
         credentials: 'omit',
-        body: body === undefined ? undefined : JSON.stringify(body),
+        body:
+          body === undefined
+            ? undefined
+            : isForm
+              ? (body as FormData)
+              : JSON.stringify(body),
       });
     } catch (cause) {
       throw new HrcekNetworkError(`Could not reach ${this.baseUrl}.`, { cause });
