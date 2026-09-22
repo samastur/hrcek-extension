@@ -12,6 +12,10 @@ export async function harvestCandidates(tabId: number): Promise<Candidate[]> {
     await injectFile(tabId, 'harvest.js');
     const reply = (await browser.tabs.sendMessage(tabId, { type: 'hrcek:harvest' })) as
       { candidates?: RawCandidate[] } | undefined;
+    // This call must stay inside the try: a reply whose `candidates` is
+    // present but not an array (the page script sent something odd) is
+    // not caught by the `??` above — it throws here instead, and that
+    // throw is what turns it into an empty list.
     return rankCandidates(reply?.candidates ?? []);
   } catch {
     return [];
