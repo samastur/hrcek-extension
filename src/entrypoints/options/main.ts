@@ -256,6 +256,10 @@ async function createToken(): Promise<void> {
     ).createToken(name, identifierInput.value.trim(), passwordInput.value);
     passwordInput.value = ''; // used once, never kept
     tokenInput.value = created.token;
+    // There is a token now, so the panel that makes one folds away and
+    // stays folded — a language switch re-renders, and without this it
+    // would spring back open on a first visit.
+    tokenAlreadyHeld = true;
     await saveSettings({
       serverUrl,
       token: created.token,
@@ -284,7 +288,14 @@ async function testConnection(): Promise<void> {
 }
 
 async function restore(): Promise<void> {
-  const settings = await loadSettings();
+  // Settings that cannot be read are still settings that must be
+  // writable: the markup is built here now, so a rejected read would
+  // otherwise leave a blank page with no way to configure anything —
+  // including no way to fix whatever broke the read.
+  const settings = await loadSettings().catch((error: unknown) => {
+    console.warn('[hrcek] could not read the stored settings', error);
+    return null;
+  });
   if (settings !== null) {
     chosenLanguage = settings.language;
     t = createTranslator(localeFor(chosenLanguage));
