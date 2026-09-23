@@ -1,12 +1,17 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
+import { createTranslator } from '../../lib/i18n';
 import { createChipInput } from './chips';
 
-function mount(tags: string[] = [], suggest = async () => [] as string[]) {
+function mount(
+  tags: string[] = [],
+  suggest = async () => [] as string[],
+  t = createTranslator('en'),
+) {
   const host = document.createElement('div');
   document.body.append(host);
   const onSubmit = vi.fn();
-  const chips = createChipInput(host, { tags, suggest, onSubmit });
+  const chips = createChipInput(host, { tags, suggest, onSubmit, t });
   const input = host.querySelector('input')!;
   return { host, chips, input, onSubmit };
 }
@@ -90,5 +95,10 @@ describe('createChipInput', () => {
     press(input, 'Enter');
     expect(chips.tags()).toEqual(['waterproofing']);
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('asks for a tag in the language it was handed', () => {
+    const { input } = mount([], async () => [], createTranslator('sl'));
+    expect(input.placeholder).toBe('Dodaj oznako');
   });
 });

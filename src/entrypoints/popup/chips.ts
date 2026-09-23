@@ -1,3 +1,4 @@
+import type { Translator } from '../../lib/i18n';
 import { addTag, normalizeTag, removeTag, suggestionsFor } from '../../lib/tags';
 
 export interface ChipOptions {
@@ -5,6 +6,7 @@ export interface ChipOptions {
   /** Answers the labels beginning with `prefix`; may reject, and then offers none. */
   suggest(prefix: string): Promise<string[]>;
   onSubmit(): void;
+  t: Translator;
 }
 
 export interface ChipInput {
@@ -14,6 +16,12 @@ export interface ChipInput {
 /** As long as a lookup can take before typing starts to feel watched. */
 const SUGGEST_DELAY_MS = 200;
 
+function escapeAttribute(value: string): string {
+  const node = document.createElement('span');
+  node.textContent = value;
+  return node.innerHTML.replaceAll('"', '&quot;');
+}
+
 export function createChipInput(host: HTMLElement, options: ChipOptions): ChipInput {
   let tags = [...options.tags];
   let suggestions: string[] = [];
@@ -22,9 +30,11 @@ export function createChipInput(host: HTMLElement, options: ChipOptions): ChipIn
   /** Rising counter, so a slow answer cannot overwrite a newer one. */
   let generation = 0;
 
+  const { t } = options;
+
   host.className = 'chips-host';
   host.innerHTML = `
-    <div class="chips"><input class="chip-input" placeholder="Add a tag" autocomplete="off" /></div>
+    <div class="chips"><input class="chip-input" placeholder="${escapeAttribute(t('tags.add'))}" autocomplete="off" /></div>
     <div class="suggestions" hidden></div>
   `;
   const box = host.querySelector<HTMLDivElement>('.chips')!;
@@ -40,7 +50,7 @@ export function createChipInput(host: HTMLElement, options: ChipOptions): ChipIn
       const remove = document.createElement('button');
       remove.type = 'button';
       remove.textContent = '×';
-      remove.setAttribute('aria-label', `Remove ${tag}`);
+      remove.setAttribute('aria-label', t('tags.remove', { tag }));
       remove.addEventListener('click', () => {
         tags = removeTag(tags, tag);
         renderChips();

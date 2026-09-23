@@ -2,6 +2,7 @@ import { browser } from 'wxt/browser';
 import { HrcekApiError, HrcekNetworkError } from '../../lib/api/errors';
 import { HrcekClient } from '../../lib/api/client';
 import { clientFromSettings } from '../../lib/client-factory';
+import { createTranslator, localeFor, type Translator } from '../../lib/i18n';
 import { harvestCandidates } from '../../lib/page/harvest-client';
 import { attachPicture, fetchPictureBytes } from '../../lib/picture';
 import { loadExisting, submitSave } from '../../lib/save';
@@ -22,6 +23,10 @@ import type { Candidate } from '../../lib/page/candidates';
 import './style.css';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
+
+// A fresh install has no settings yet, and the popup still has to speak:
+// Automatic resolves against the browser until main() knows better.
+let t: Translator = createTranslator(localeFor(null));
 
 let settings: Settings | null = null;
 let client: HrcekClient | null = null;
@@ -111,7 +116,7 @@ function messageFor(error: unknown): string {
   // The server's message is translated and made for people — show it.
   if (error instanceof HrcekApiError) return error.message;
   if (error instanceof HrcekNetworkError) return error.message;
-  return 'Something went wrong.';
+  return t('error.somethingWrong');
 }
 
 function fieldControl(input: FieldInput): string {
@@ -129,7 +134,7 @@ function fieldControl(input: FieldInput): string {
           option === ''
             ? '—'
             : option === input.value && isOrphan
-              ? `${escapeText(option)} (no longer offered)`
+              ? escapeText(t('popup.noLongerOffered', { option }))
               : escapeText(option);
         return `<option value="${escapeAttribute(option)}"${option === input.value ? ' selected' : ''}>${label}</option>`;
       })
@@ -163,7 +168,7 @@ function fieldsMarkup(inputs: FieldInput[]): string {
     )
     .join('');
   // Closed by default: these are optional, and most saves never touch them.
-  return `<details id="fields"><summary>Your fields</summary><div class="field-body">${rows}</div></details>`;
+  return `<details id="fields"><summary>${escapeText(t('popup.yourFields'))}</summary><div class="field-body">${rows}</div></details>`;
 }
 
 function renderUnconfigured(): void {
@@ -172,8 +177,8 @@ function renderUnconfigured(): void {
       <img src="/icon/32.png" alt="" />
       <span class="name">Hrček</span>
     </div>
-    <p>Hrček is not configured yet.</p>
-    <button id="open-options">Open settings</button>
+    <p>${escapeText(t('popup.notConfigured'))}</p>
+    <button id="open-options">${escapeText(t('popup.openSettings'))}</button>
   `;
   document
     .querySelector<HTMLButtonElement>('#open-options')!
@@ -186,16 +191,16 @@ function renderForm(form: FormState, existing: boolean): void {
     <div class="hrcek-header">
       <img src="/icon/32.png" alt="" />
       <span class="name">Hrček</span>
-      ${existing ? '<span class="aside">Already saved</span>' : ''}
+      ${existing ? `<span class="aside">${escapeText(t('popup.alreadySaved'))}</span>` : ''}
     </div>
     <span class="address" id="address" title=""></span>
     <form id="entry-form">
-      <div class="field"><label for="title">Title</label><input id="title" /></div>
-      <div class="field"><label for="notes">Notes</label><textarea id="notes" rows="3"></textarea></div>
-      <div class="field" id="picture-field"><label>Picture</label><div id="picture"></div></div>
-      <div class="field"><label>Tags</label><div id="tags"></div></div>
+      <div class="field"><label for="title">${escapeText(t('popup.title'))}</label><input id="title" /></div>
+      <div class="field"><label for="notes">${escapeText(t('popup.notes'))}</label><textarea id="notes" rows="3"></textarea></div>
+      <div class="field" id="picture-field"><label>${escapeText(t('popup.picture'))}</label><div id="picture"></div></div>
+      <div class="field"><label>${escapeText(t('popup.tags'))}</label><div id="tags"></div></div>
       ${fieldsMarkup(form.fields)}
-      <button type="submit" id="save">${existing ? 'Update' : 'Save'}</button>
+      <button type="submit" id="save">${escapeText(existing ? t('popup.update') : t('popup.save'))}</button>
       <p id="status" data-kind="info"></p>
     </form>
   `;
@@ -205,7 +210,7 @@ function renderForm(form: FormState, existing: boolean): void {
   document.querySelector<HTMLInputElement>('#title')!.value = form.title;
   document.querySelector<HTMLTextAreaElement>('#notes')!.value = form.notes;
   const pictureHost = document.querySelector<HTMLDivElement>('#picture')!;
-  picker = createPicker(pictureHost, { candidates, held, existing });
+  picker = createPicker(pictureHost, { candidates, held, existing, t });
   // The row is absent, not empty, when the page offered nothing.
   if (pictureHost.innerHTML === '') {
     document.querySelector<HTMLDivElement>('#picture-field')!.hidden = true;
@@ -219,6 +224,7 @@ function renderForm(form: FormState, existing: boolean): void {
             .listLabels({ startsWith: prefix })
             .then((labels) => labels.map((label) => label.name)),
     onSubmit: () => void save(),
+    t,
   });
 
   const entryForm = document.querySelector<HTMLFormElement>('#entry-form')!;
@@ -268,10 +274,10 @@ async function save(): Promise<void> {
   // would miss it.
   picker?.collapse();
   if (!settings || !client) {
-    setStatus('error', 'Settings not available.');
+    setStatus('error', t('popup.settingsUnavailable'));
     return;
   }
-  setStatus('info', 'Saving…');
+  setStatus('info', t('popup.saving'));
 
   // The initial look-before-write failed (network blip, 5xx — not a
   // confirmed "not held"). Posting now could blind-replace a held entry's
@@ -283,10 +289,7 @@ async function save(): Promise<void> {
         lookupFailed = false;
         await loadHeldPicture(existing.image);
         renderForm(entryToForm(existing, definitions), true);
-        setStatus(
-          'error',
-          'This address is already saved. Review the existing entry, then save again.',
-        );
+        setStatus('error', t('popup.alreadySavedReview'));
         return;
       }
       lookupFailed = false;
@@ -326,10 +329,13 @@ async function save(): Promise<void> {
       (await attachPicture(client, outcome.entry, choice, bytes));
     if (trouble !== null) {
       // The entry stands; only the picture did not.
-      setStatus('error', `Saved, but the picture could not be attached: ${trouble}`);
+      setStatus('error', t('popup.savedPictureTrouble', { reason: trouble }));
       return;
     }
-    setStatus('success', outcome.status === 'created' ? 'Saved.' : 'Updated.');
+    setStatus(
+      'success',
+      outcome.status === 'created' ? t('popup.saved') : t('popup.updated'),
+    );
   } catch (error) {
     setStatus('error', messageFor(error));
   }
@@ -337,11 +343,15 @@ async function save(): Promise<void> {
 
 async function main(): Promise<void> {
   settings = await loadSettings();
+  // A fresh install has no settings and still has to say so: Automatic
+  // resolves against the browser.
+  const locale = localeFor(settings?.language ?? null);
+  t = createTranslator(locale);
   if (settings === null) {
     renderUnconfigured();
     return;
   }
-  client = clientFromSettings(settings);
+  client = clientFromSettings(settings, locale);
   const { url, title } = await getPageInfo();
   pageUrl = url;
   const seeded = seededCandidates();
