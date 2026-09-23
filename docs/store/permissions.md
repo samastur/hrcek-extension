@@ -28,8 +28,10 @@ idle; see `docs/store/privacy.md` for what it holds.
 The toolbar button ticks the hamster on a page you have already saved.
 Deciding that needs each tab's address as you browse, which `activeTab`
 does not provide — it reveals a tab's URL only after a click on that
-tab. It grants no access to page content. Switched off entirely when
-"Show whether a page is already saved" is turned off in settings.
+tab. It grants no access to page content. With "Show whether a page is
+already saved" turned off in settings, the extension still receives
+those addresses but asks nothing about them: no request leaves the
+browser, and the address is used for nothing else.
 
 ## `scripting` (Chrome only)
 
