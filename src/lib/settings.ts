@@ -15,11 +15,21 @@ export interface Settings {
    * stated where it is switched.
    */
   showSavedState: boolean;
+  /**
+   * The language to speak, or null for Automatic — the browser's own.
+   * The chosen tag is stored rather than the resolved one, so a browser
+   * that changes language later is still followed.
+   */
+  language: string | null;
 }
 
 // storage.local only: storage.sync is unencrypted and replicated.
 const settingsItem = storage.defineItem<
-  | (Omit<Settings, 'showSavedState'> & { authMode?: string; showSavedState?: boolean })
+  | (Omit<Settings, 'showSavedState' | 'language'> & {
+      authMode?: string;
+      showSavedState?: boolean;
+      language?: string | null;
+    })
   | null
 >('local:settings', { fallback: null });
 
@@ -36,6 +46,8 @@ export async function loadSettings(): Promise<Settings | null> {
     token: stored.token,
     // Absent in settings written before the switch existed.
     showSavedState: stored.showSavedState ?? true,
+    // Absent in settings written before the choice existed: Automatic.
+    language: stored.language ?? null,
   };
 }
 
@@ -44,5 +56,6 @@ export async function saveSettings(settings: Settings): Promise<void> {
     serverUrl: normalizeServerUrl(settings.serverUrl),
     token: settings.token,
     showSavedState: settings.showSavedState,
+    language: settings.language,
   });
 }

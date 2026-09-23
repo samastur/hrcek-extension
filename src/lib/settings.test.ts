@@ -16,12 +16,14 @@ describe('settings', () => {
       serverUrl: 'https://hrcek.example.com',
       token: 'hrcek_abc',
       showSavedState: true,
+      language: null,
     });
 
     expect(await loadSettings()).toEqual({
       serverUrl: 'https://hrcek.example.com',
       token: 'hrcek_abc',
       showSavedState: true,
+      language: null,
     });
   });
 
@@ -30,6 +32,7 @@ describe('settings', () => {
       serverUrl: '  https://hrcek.example.com//  ',
       token: null,
       showSavedState: true,
+      language: null,
     });
 
     expect((await loadSettings())?.serverUrl).toBe('https://hrcek.example.com');
@@ -50,6 +53,7 @@ describe('settings', () => {
       serverUrl: 'https://hrcek.example.com',
       token: null,
       showSavedState: true,
+      language: null,
     });
   });
 
@@ -66,9 +70,30 @@ describe('settings', () => {
       serverUrl: 'https://hrcek.example.com',
       token: 'hrcek_abc',
       showSavedState: false,
+      language: null,
     });
 
     expect((await loadSettings())?.showSavedState).toBe(false);
+  });
+
+  it('round-trips a chosen language', async () => {
+    await saveSettings({
+      serverUrl: 'https://hrcek.example.com',
+      token: 'hrcek_abc',
+      showSavedState: true,
+      language: 'sl',
+    });
+
+    expect((await loadSettings())?.language).toBe('sl');
+  });
+
+  it('reads settings written before the choice existed as Automatic', async () => {
+    // Automatic is what those users already have: the browser's language.
+    await fakeBrowser.storage.local.set({
+      settings: { serverUrl: 'https://hrcek.example.com', token: 'hrcek_abc' },
+    });
+
+    expect((await loadSettings())?.language).toBeNull();
   });
 });
 
