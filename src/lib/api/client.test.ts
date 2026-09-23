@@ -244,6 +244,30 @@ describe('HrcekClient', () => {
     );
     await expect(client().deleteImage(1)).resolves.toBeUndefined();
   });
+
+  it('asks for the language it was built with', async () => {
+    server.use(
+      http.get(`${BASE}/api/auth/me`, ({ request }) => {
+        // The server translates its messages; codes never change, so this
+        // header changes only what a person reads.
+        expect(request.headers.get('Accept-Language')).toBe('sl');
+        return HttpResponse.json({ email: 'nina@example.com', display_name: null });
+      }),
+    );
+
+    await new HrcekClient(BASE, 'hrcek_abc', undefined, { acceptLanguage: 'sl' }).me();
+  });
+
+  it('sends no Accept-Language when it was given none', async () => {
+    server.use(
+      http.get(`${BASE}/api/auth/me`, ({ request }) => {
+        expect(request.headers.get('Accept-Language')).toBeNull();
+        return HttpResponse.json({ email: 'nina@example.com', display_name: null });
+      }),
+    );
+
+    await client().me();
+  });
 });
 
 describe('createToken', () => {
@@ -331,5 +355,20 @@ describe('createToken', () => {
         (e: unknown) => e,
       );
     expect((error as HrcekApiError).code).toBe('HRC-AUTH-0001');
+  });
+
+  it('asks for the language even when anonymous', async () => {
+    server.use(
+      http.post(`${BASE}/api/auth/tokens/exchange`, ({ request }) => {
+        expect(request.headers.get('Accept-Language')).toBe('sl');
+        return HttpResponse.json(CREATED, { status: 201 });
+      }),
+    );
+
+    await new HrcekClient(BASE, null, undefined, { acceptLanguage: 'sl' }).createToken(
+      'n',
+      'nina@example.com',
+      'p',
+    );
   });
 });
