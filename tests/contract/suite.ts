@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HrcekClient } from '../../src/lib/api/client';
+import type { HrcekApiError } from '../../src/lib/api/errors';
 import { loadExisting, submitSave } from '../../src/lib/save';
 // A constant, not behaviour: the fake refuses this address, and a real
 // Hrček cannot resolve it either, so both answer HRC-IMAGE-*.
@@ -212,6 +213,35 @@ export function runContractSuite(
 
       const elsewhere = await client().listLabels({ startsWith: 'zzz-no-such-prefix-' });
       expect(elsewhere).toEqual([]);
+    });
+
+    it('answers in the language the client asked for, and in English otherwise', async () => {
+      const missing = testUrl('language');
+
+      const slovenian = await new HrcekClient(
+        target().baseUrl,
+        target().token,
+        undefined,
+        {
+          acceptLanguage: 'sl',
+        },
+      )
+        .getEntryByUrl(missing)
+        .then(
+          () => null,
+          (error: unknown) => error as HrcekApiError,
+        );
+      const english = await client()
+        .getEntryByUrl(missing)
+        .then(
+          () => null,
+          (error: unknown) => error as HrcekApiError,
+        );
+
+      // The code is the contract and never changes with the language.
+      expect(slovenian?.code).toBe('HRC-CORE-0003');
+      expect(english?.code).toBe('HRC-CORE-0003');
+      expect(slovenian?.message).not.toBe(english?.message);
     });
   });
 }

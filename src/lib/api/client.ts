@@ -21,6 +21,12 @@ export class HrcekClient {
     /** Bearer token, or null when only anonymous calls are needed. */
     private readonly token: string | null,
     private readonly fetchFn: typeof fetch = (...args) => fetch(...args),
+    /**
+     * The language to ask the server's messages in. Codes never change,
+     * so this changes only what a person reads. Unset sends no header,
+     * and the server answers in its own default.
+     */
+    private readonly clientOptions: { acceptLanguage?: string } = {},
   ) {}
 
   async health(): Promise<HealthOut> {
@@ -142,6 +148,9 @@ export class HrcekClient {
       // Every route but the picture answers JSON; a refusal is JSON even
       // from the picture route, and errorFromResponse reads it as such.
       Accept: options.accept ?? 'application/json',
+      ...(this.clientOptions.acceptLanguage !== undefined
+        ? { 'Accept-Language': this.clientOptions.acceptLanguage }
+        : {}),
       // FormData sets its own Content-Type, boundary and all. Setting it
       // by hand produces a body the server cannot parse.
       ...(body !== undefined && !isForm ? { 'Content-Type': 'application/json' } : {}),

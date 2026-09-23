@@ -61,6 +61,27 @@ function errorBody(
   return { error: { code, message, details } };
 }
 
+/**
+ * The real server translates messages and falls back to English for a
+ * language it does not carry (../hrcek/docs/dev/api.md, "Languages").
+ * One message is enough to prove a client asked in the right language.
+ */
+const TRANSLATIONS: Record<string, Record<string, string>> = {
+  sl: { 'HRC-CORE-0003': 'Zahtevani vir ne obstaja.' },
+};
+
+function languageOf(req: http.IncomingMessage): string {
+  // Good enough for a fake: the first tag, without its quality weight.
+  const header = req.headers['accept-language'] ?? '';
+  return header.split(',')[0]?.split(';')[0]?.trim().toLowerCase() ?? '';
+}
+
+function translate(req: http.IncomingMessage, body: ErrorBody): ErrorBody {
+  const message = TRANSLATIONS[languageOf(req)]?.[body.error.code];
+  if (message === undefined) return body;
+  return { error: { ...body.error, message } };
+}
+
 /** Whitespace trimmed, scheme and host lowercased — and nothing else. */
 function normalizeUrl(raw: string): string {
   const trimmed = raw.trim();
@@ -296,9 +317,12 @@ export async function startFakeHrcek(port = 0): Promise<FakeHrcek> {
           return json(
             res,
             404,
-            errorBody('HRC-CORE-0003', 'The requested resource does not exist.', {
-              url,
-            }),
+            translate(
+              req,
+              errorBody('HRC-CORE-0003', 'The requested resource does not exist.', {
+                url,
+              }),
+            ),
           );
         }
         return json(res, 200, entry);
