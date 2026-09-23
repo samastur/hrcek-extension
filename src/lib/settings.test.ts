@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
-import { loadSettings, normalizeServerUrl, saveSettings } from './settings';
+import { isConfigured, loadSettings, normalizeServerUrl, saveSettings } from './settings';
 
 describe('settings', () => {
   beforeEach(() => {
@@ -94,6 +94,37 @@ describe('settings', () => {
     });
 
     expect((await loadSettings())?.language).toBeNull();
+  });
+});
+
+describe('isConfigured', () => {
+  it('says no to a fresh install', () => {
+    expect(isConfigured(null)).toBe(false);
+  });
+
+  it('says no to a server address saved before a token was minted', () => {
+    // The documented first-run order — the mint panel sits below the
+    // Save button. Whoever asks must not mistake this for a token the
+    // server refused: there is no token to refuse.
+    expect(
+      isConfigured({
+        serverUrl: 'https://hrcek.example.com',
+        token: null,
+        showSavedState: true,
+        language: null,
+      }),
+    ).toBe(false);
+  });
+
+  it('says yes once there is a token', () => {
+    expect(
+      isConfigured({
+        serverUrl: 'https://hrcek.example.com',
+        token: 'hrcek_abc',
+        showSavedState: true,
+        language: null,
+      }),
+    ).toBe(true);
   });
 });
 
