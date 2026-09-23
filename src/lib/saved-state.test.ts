@@ -190,8 +190,13 @@ describe('createSavedState', () => {
     const writes: Record<string, Entry>[] = [];
     const store: StateStore = {
       read: async () => {
+        // A real storage.session.get() effectively snapshots at the
+        // moment it is called; only the promise settling is delayed.
+        // Capturing here (not after the gate) is what makes this a
+        // stale-read race rather than a same-value coincidence.
+        const snapshot = backing;
         await gate;
-        return backing;
+        return snapshot;
       },
       write: async (entries) => {
         writes.push(entries);
