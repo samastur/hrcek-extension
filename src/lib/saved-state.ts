@@ -54,15 +54,23 @@ export function createSavedState(options: {
       hydrated =
         options.store === undefined
           ? Promise.resolve()
-          : options.store.read().then((entries) => {
-              // A reset() during the read makes this answer stale: the
-              // store has already been told to forget everything.
-              if (startedAt !== generation) return;
-              for (const [url, entry] of Object.entries(entries)) {
-                // Anything learned since the read wins: it is newer.
-                if (!cache.has(url)) cache.set(url, entry);
-              }
-            });
+          : options.store
+              .read()
+              .then((entries) => {
+                // A reset() during the read makes this answer stale: the
+                // store has already been told to forget everything.
+                if (startedAt !== generation) return;
+                for (const [url, entry] of Object.entries(entries)) {
+                  // Anything learned since the read wins: it is newer.
+                  if (!cache.has(url)) cache.set(url, entry);
+                }
+              })
+              // A store that cannot be read is the same as no store at
+              // all, which is already the documented fallback. Without
+              // this the rejection would be cached — hydrated is only
+              // rebuilt by reset() — and every later get() would reject,
+              // taking the badge with it for the life of the context.
+              .catch(() => undefined);
     }
     return hydrated;
   }

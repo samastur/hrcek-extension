@@ -193,6 +193,24 @@ describe('createSavedState', () => {
     expect(look).toHaveBeenCalledTimes(1);
   });
 
+  it('carries on in memory when the store cannot be read', async () => {
+    // A store that will not answer is the same as no store at all. The
+    // one thing it must not do is poison every later get(): hydration is
+    // read once per context, so a cached rejection would stop the badge
+    // for good.
+    const store: StateStore = {
+      read: async () => {
+        throw new Error('storage.session is unavailable');
+      },
+      write: async () => undefined,
+    };
+    const look = vi.fn(async () => true);
+    const state = createSavedState({ look, now: () => 0, store });
+
+    expect(await state.get('https://example.com/a')).toBe('held');
+    expect(await state.get('https://example.com/b')).toBe('held');
+  });
+
   it('does not let mark() as the first operation erase what an earlier worker cached', async () => {
     // Chrome can wake the worker specifically to deliver the "you just
     // saved this" message, so mark() — not get() — can be the very first
