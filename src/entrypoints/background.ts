@@ -3,6 +3,7 @@ import { isAuthFailure } from '../lib/api/errors';
 import { clientFromSettings } from '../lib/client-factory';
 import { createTranslator, localeFor, type Translator } from '../lib/i18n';
 import { setIcon, setTitle, type IconState } from '../lib/icon';
+import { sessionStore } from '../lib/platform/session-store';
 import { loadExisting } from '../lib/save';
 import { createSavedState } from '../lib/saved-state';
 import { loadSettings } from '../lib/settings';
@@ -31,6 +32,9 @@ const savedState = createSavedState({
   },
   now: () => Date.now(),
   isUnauthorized: isAuthFailure,
+  // Chrome's MV3 worker dies after 30 seconds idle; without this it
+  // re-asks the server about every tab it has already asked about.
+  store: sessionStore('saved-state'),
 });
 
 let pending: ReturnType<typeof setTimeout> | undefined;

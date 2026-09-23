@@ -1,3 +1,5 @@
+import type { StateStore } from './platform/session-store';
+
 /** Long enough to spare the server, short enough to notice a website edit. */
 export const CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -16,7 +18,7 @@ export interface SavedState {
   reset(): void;
 }
 
-interface Entry {
+export interface Entry {
   held: boolean;
   at: number;
 }
@@ -26,6 +28,8 @@ export function createSavedState(options: {
   now(): number;
   /** Which failures mean "the token is no good", not "not just now". */
   isUnauthorized?(error: unknown): boolean;
+  /** Where answers outlive this context. Absent means memory only. */
+  store?: StateStore;
 }): SavedState {
   // Insertion-ordered, which is what makes "evict the oldest" a shift.
   // In memory, not storage: a stale answer surviving a browser restart is
@@ -37,6 +41,24 @@ export function createSavedState(options: {
   // cannot succeed. Cleared by reset(), which a settings change calls.
   let unauthorized = false;
 
+  // Read once per context, not per lookup: this is a worker that may
+  // have just started, not a cache that changes underneath us.
+  let hydrated: Promise<void> | null = null;
+  function hydrate(): Promise<void> {
+    if (hydrated === null) {
+      hydrated =
+        options.store === undefined
+          ? Promise.resolve()
+          : options.store.read().then((entries) => {
+              for (const [url, entry] of Object.entries(entries)) {
+                // Anything learned since the read wins: it is newer.
+                if (!cache.has(url)) cache.set(url, entry);
+              }
+            });
+    }
+    return hydrated;
+  }
+
   function remember(url: string, held: boolean): void {
     cache.delete(url);
     cache.set(url, { held, at: options.now() });
@@ -45,10 +67,13 @@ export function createSavedState(options: {
       if (oldest === undefined) break;
       cache.delete(oldest);
     }
+    // Write-through, fire and forget: a lost write costs one request.
+    void options.store?.write(Object.fromEntries(cache));
   }
 
   return {
     async get(url: string): Promise<Answer> {
+      await hydrate();
       if (unauthorized) return 'unauthorized';
       const cached = cache.get(url);
       if (cached !== undefined && options.now() - cached.at < CACHE_TTL_MS) {
@@ -87,6 +112,8 @@ export function createSavedState(options: {
     reset(): void {
       unauthorized = false;
       cache.clear();
+      hydrated = null;
+      void options.store?.write({});
     },
   };
 }

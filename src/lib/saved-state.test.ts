@@ -1,6 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 import { HrcekApiError, HrcekNetworkError, isAuthFailure } from './api/errors';
-import { CACHE_LIMIT, CACHE_TTL_MS, createSavedState } from './saved-state';
+import type { StateStore } from './platform/session-store';
+import { CACHE_LIMIT, CACHE_TTL_MS, createSavedState, type Entry } from './saved-state';
+
+function backedStore(initial: Record<string, Entry> = {}): StateStore {
+  let backing = initial;
+  return {
+    read: async () => backing,
+    write: async (entries) => {
+      backing = entries;
+    },
+  };
+}
 
 function harness(answers: (url: string) => Promise<boolean>) {
   let clock = 0;
@@ -114,5 +125,33 @@ describe('createSavedState', () => {
     expect(await state.get('https://example.com/b')).toBe('unknown');
     // Not latched: "we could not ask" is not "your token is dead".
     expect(look).toHaveBeenCalledTimes(2);
+  });
+
+  it('finds what an earlier worker already asked', async () => {
+    // Chrome kills the MV3 worker after 30 seconds idle. Without this,
+    // every tab switch after a pause costs a request the server has
+    // already answered.
+    const store = backedStore();
+    const first = createSavedState({ look: async () => true, now: () => 0, store });
+    expect(await first.get('https://example.com/a')).toBe('held');
+
+    // A new worker over the same session storage, and a look that would
+    // throw if it were called at all.
+    const look = vi.fn(async () => {
+      throw new Error('should not ask again');
+    });
+    const second = createSavedState({ look, now: () => 1000, store });
+
+    expect(await second.get('https://example.com/a')).toBe('held');
+    expect(look).not.toHaveBeenCalled();
+  });
+
+  it('still lets a stored answer go stale', async () => {
+    const store = backedStore({ 'https://example.com/a': { held: true, at: 0 } });
+    const look = vi.fn(async () => false);
+    const state = createSavedState({ look, now: () => CACHE_TTL_MS + 1, store });
+
+    expect(await state.get('https://example.com/a')).toBe('not-held');
+    expect(look).toHaveBeenCalledTimes(1);
   });
 });
