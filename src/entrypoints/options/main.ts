@@ -116,6 +116,7 @@ async function save(): Promise<void> {
       serverUrl,
       token: token.length > 0 ? token : null,
       showSavedState: showSavedInput.checked,
+      language: null,
     });
     setStatus(
       'success',
@@ -159,6 +160,7 @@ async function createToken(): Promise<void> {
       serverUrl,
       token: created.token,
       showSavedState: showSavedInput.checked,
+      language: null,
     });
     setStatus('success', `Saved. Token created as "${created.name}".`);
   } catch (error) {
