@@ -42,3 +42,12 @@ export async function errorFromResponse(response: Response): Promise<HrcekApiErr
     );
   }
 }
+
+/**
+ * Whether the server refused the credential rather than the request. A
+ * revoked or expired token looks like this, and nothing else does —
+ * being unable to reach the server is not a refusal.
+ */
+export function isAuthFailure(error: unknown): boolean {
+  return error instanceof HrcekApiError && (error.status === 401 || error.status === 403);
+}

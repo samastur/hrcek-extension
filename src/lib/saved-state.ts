@@ -4,11 +4,16 @@ export const CACHE_TTL_MS = 5 * 60 * 1000;
 /** A browsing session's worth of addresses. */
 export const CACHE_LIMIT = 500;
 
+/** What is known about an address. */
+export type Answer = 'held' | 'not-held' | 'unknown' | 'unauthorized';
+
 export interface SavedState {
-  /** true held, false not held, null could not be asked. */
-  get(url: string): Promise<boolean | null>;
+  /** What is known, asking the server when the cache cannot say. */
+  get(url: string): Promise<Answer>;
   /** Record an answer already known — a save just made, say. */
   mark(url: string, held: boolean): void;
+  /** Forget everything, including a refusal. For a settings change. */
+  reset(): void;
 }
 
 interface Entry {
@@ -19,12 +24,18 @@ interface Entry {
 export function createSavedState(options: {
   look(url: string): Promise<boolean>;
   now(): number;
+  /** Which failures mean "the token is no good", not "not just now". */
+  isUnauthorized?(error: unknown): boolean;
 }): SavedState {
   // Insertion-ordered, which is what makes "evict the oldest" a shift.
   // In memory, not storage: a stale answer surviving a browser restart is
   // worse than asking again.
   const cache = new Map<string, Entry>();
-  const inFlight = new Map<string, Promise<boolean | null>>();
+  const inFlight = new Map<string, Promise<Answer>>();
+  // Latched, not cached per address: a refused token refuses every
+  // address, and asking once per tab would be a request a minute that
+  // cannot succeed. Cleared by reset(), which a settings change calls.
+  let unauthorized = false;
 
   function remember(url: string, held: boolean): void {
     cache.delete(url);
@@ -37,10 +48,11 @@ export function createSavedState(options: {
   }
 
   return {
-    async get(url: string): Promise<boolean | null> {
+    async get(url: string): Promise<Answer> {
+      if (unauthorized) return 'unauthorized';
       const cached = cache.get(url);
       if (cached !== undefined && options.now() - cached.at < CACHE_TTL_MS) {
-        return cached.held;
+        return cached.held ? 'held' : 'not-held';
       }
       // Two tabs on the same address should cost one request, not two.
       const pending = inFlight.get(url);
@@ -49,13 +61,17 @@ export function createSavedState(options: {
       const request = options
         .look(url)
         .then(
-          (held) => {
+          (held): Answer => {
             remember(url, held);
-            return held;
+            return held ? 'held' : 'not-held';
           },
-          () => {
+          (error: unknown): Answer => {
             // Not remembered: a failure must not harden into an answer.
-            return null;
+            if (options.isUnauthorized?.(error) === true) {
+              unauthorized = true;
+              return 'unauthorized';
+            }
+            return 'unknown';
           },
         )
         .finally(() => inFlight.delete(url));
@@ -66,6 +82,11 @@ export function createSavedState(options: {
 
     mark(url: string, held: boolean): void {
       remember(url, held);
+    },
+
+    reset(): void {
+      unauthorized = false;
+      cache.clear();
     },
   };
 }

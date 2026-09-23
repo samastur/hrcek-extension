@@ -1,5 +1,5 @@
 import { browser } from 'wxt/browser';
-import { HrcekApiError, HrcekNetworkError } from '../../lib/api/errors';
+import { HrcekApiError, HrcekNetworkError, isAuthFailure } from '../../lib/api/errors';
 import { HrcekClient } from '../../lib/api/client';
 import { clientFromSettings } from '../../lib/client-factory';
 import { createTranslator, localeFor, type Translator } from '../../lib/i18n';
@@ -228,6 +228,20 @@ function renderUnconfigured(): void {
     .addEventListener('click', () => browser.runtime.openOptionsPage());
 }
 
+function renderUnauthorized(): void {
+  app.innerHTML = `
+    <div class="hrcek-header">
+      <img src="/icon/32.png" alt="" />
+      <span class="name">Hrček</span>
+    </div>
+    <p>${escapeText(t('popup.signInAgain'))}</p>
+    <button id="open-options">${escapeText(t('popup.openSettings'))}</button>
+  `;
+  document
+    .querySelector<HTMLButtonElement>('#open-options')!
+    .addEventListener('click', () => browser.runtime.openOptionsPage());
+}
+
 function renderForm(form: FormState, existing: boolean): void {
   renderedFields = form.fields;
   app.innerHTML = `
@@ -434,6 +448,11 @@ async function main(): Promise<void> {
       renderForm(emptyForm(url, title, definitions), false);
     }
   } catch (error) {
+    if (isAuthFailure(error)) {
+      // Nothing on this form can succeed until there is a new token.
+      renderUnauthorized();
+      return;
+    }
     lookupFailed = true;
     renderForm(emptyForm(url, title, definitions), false);
     setStatus('error', messageFor(error));

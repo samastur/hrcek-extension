@@ -1,6 +1,8 @@
 import { browser } from 'wxt/browser';
+import { isAuthFailure } from '../lib/api/errors';
 import { clientFromSettings } from '../lib/client-factory';
-import { setIcon, type IconState } from '../lib/icon';
+import { createTranslator, localeFor, type Translator } from '../lib/i18n';
+import { setIcon, setTitle, type IconState } from '../lib/icon';
 import { loadExisting } from '../lib/save';
 import { createSavedState } from '../lib/saved-state';
 import { loadSettings } from '../lib/settings';
@@ -8,13 +10,27 @@ import { loadSettings } from '../lib/settings';
 /** Long enough that flicking through tabs costs one request, not ten. */
 const LOOKUP_DELAY_MS = 400;
 
+let t: Translator = createTranslator(localeFor(null));
+
+/** Re-read whenever settings change: the language may have changed too. */
+async function refreshLanguage(): Promise<void> {
+  const settings = await loadSettings();
+  t = createTranslator(localeFor(settings?.language ?? null));
+}
+
 const savedState = createSavedState({
   look: async (url) => {
     const settings = await loadSettings();
     if (settings === null || settings.token === null) throw new Error('not configured');
-    return (await loadExisting(clientFromSettings(settings), url)) !== null;
+    return (
+      (await loadExisting(
+        clientFromSettings(settings, localeFor(settings.language)),
+        url,
+      )) !== null
+    );
   },
   now: () => Date.now(),
+  isUnauthorized: isAuthFailure,
 });
 
 let pending: ReturnType<typeof setTimeout> | undefined;
@@ -45,16 +61,26 @@ async function paint(tabId: number, url: string | undefined): Promise<void> {
   // Colour until proven ticked. A failure leaves it here: "we could not
   // ask" is not "you have not saved it".
   await setIcon('configured', tabId);
+  await setTitle(t('toolbar.name'), tabId);
   clearTimeout(pending);
   pending = setTimeout(() => {
-    void savedState.get(url).then((held) => {
-      const state: IconState = held === true ? 'saved' : 'configured';
-      void setIcon(state, tabId);
+    void savedState.get(url).then(async (answer) => {
+      if (answer === 'unauthorized') {
+        // Grey, like unconfigured — because in every way that matters it
+        // is: nothing works until there is a new token. The tooltip says
+        // which of the two it is.
+        await setIcon('unconfigured', tabId);
+        await setTitle(t('toolbar.signInAgain'), tabId);
+        return;
+      }
+      const state: IconState = answer === 'held' ? 'saved' : 'configured';
+      await setIcon(state, tabId);
     });
   }, LOOKUP_DELAY_MS);
 }
 
 export default defineBackground(() => {
+  void refreshLanguage();
   void paintGlobal();
 
   browser.tabs.onActivated.addListener(({ tabId }) => {
@@ -89,9 +115,14 @@ export default defineBackground(() => {
 
   browser.storage.local.onChanged.addListener((changes) => {
     if (!('settings' in changes)) return;
-    void paintGlobal();
-    void browser.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
-      if (tab?.id !== undefined) void paint(tab.id, tab.url);
+    // A new token deserves a fresh ask, and the language may have
+    // changed with it.
+    savedState.reset();
+    void refreshLanguage().then(() => {
+      void paintGlobal();
+      void browser.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
+        if (tab?.id !== undefined) void paint(tab.id, tab.url);
+      });
     });
   });
 });

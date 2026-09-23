@@ -8,6 +8,7 @@ import { browser } from 'wxt/browser';
  */
 interface ToolbarAction {
   setIcon(details: { path: Record<number, string>; tabId?: number }): Promise<void>;
+  setTitle(details: { title: string; tabId?: number }): Promise<void>;
 }
 
 export function toolbarAction(): ToolbarAction {
