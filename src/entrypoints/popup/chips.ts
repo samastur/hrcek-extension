@@ -110,8 +110,10 @@ export function createChipInput(host: HTMLElement, options: ChipOptions): ChipIn
           highlighted = -1;
           renderSuggestions();
         },
-        () => {
-          // Suggestions are a convenience. Typing still works without them.
+        (error: unknown) => {
+          // Suggestions are a convenience. Typing still works without
+          // them, so this is for the console, not for the person.
+          console.warn('[hrcek] could not read label suggestions', error);
           if (mine === generation) clearSuggestions();
         },
       );

@@ -23,7 +23,10 @@ export async function harvestCandidates(tabId: number): Promise<Candidate[]> {
     // not caught by the `??` above — it throws here instead, and that
     // throw is what turns it into an empty list.
     return rankCandidates(reply?.candidates ?? []);
-  } catch {
+  } catch (error) {
+    // A page that cannot be read offers no picture, which is not a
+    // failure worth showing — a PDF would say it every single time.
+    console.warn('[hrcek] could not read the page’s pictures', error);
     return [];
   }
 }
