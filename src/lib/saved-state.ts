@@ -44,12 +44,20 @@ export function createSavedState(options: {
   // Read once per context, not per lookup: this is a worker that may
   // have just started, not a cache that changes underneath us.
   let hydrated: Promise<void> | null = null;
+  // Bumped by reset(), so a hydration or write-through already in flight
+  // when a reset lands can recognise it is stale and back off instead of
+  // resurrecting what reset() just cleared.
+  let generation = 0;
   function hydrate(): Promise<void> {
     if (hydrated === null) {
+      const startedAt = generation;
       hydrated =
         options.store === undefined
           ? Promise.resolve()
           : options.store.read().then((entries) => {
+              // A reset() during the read makes this answer stale: the
+              // store has already been told to forget everything.
+              if (startedAt !== generation) return;
               for (const [url, entry] of Object.entries(entries)) {
                 // Anything learned since the read wins: it is newer.
                 if (!cache.has(url)) cache.set(url, entry);
@@ -67,8 +75,17 @@ export function createSavedState(options: {
       if (oldest === undefined) break;
       cache.delete(oldest);
     }
-    // Write-through, fire and forget: a lost write costs one request.
-    void options.store?.write(Object.fromEntries(cache));
+    // Hydrate first: a write-through from a worker that has not yet read
+    // the store would otherwise replace everything the last worker learned
+    // with just this one entry. hydrate() only fills in URLs the cache does
+    // not already hold, so the entry just remembered still wins.
+    const startedAt = generation;
+    void hydrate().then(() => {
+      // A reset() landed while we waited: its own write already told the
+      // store to forget everything, and writing here would undo that.
+      if (startedAt !== generation) return;
+      void options.store?.write(Object.fromEntries(cache));
+    });
   }
 
   return {
@@ -113,6 +130,7 @@ export function createSavedState(options: {
       unauthorized = false;
       cache.clear();
       hydrated = null;
+      generation++;
       void options.store?.write({});
     },
   };
