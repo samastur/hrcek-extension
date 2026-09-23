@@ -25,6 +25,14 @@ let passwordInput: HTMLInputElement;
 let accountLink: HTMLAnchorElement;
 let showSavedInput: HTMLInputElement;
 
+/**
+ * Whether the account already held a token as of the last restore.
+ * Minting is the first-run path; once a token is held, every render
+ * folds the create-token panel away — not just the first one, or a
+ * language switch would spring it back open.
+ */
+let tokenAlreadyHeld = false;
+
 function escapeText(value: string): string {
   const node = document.createElement('span');
   node.textContent = value;
@@ -96,6 +104,10 @@ function render(): void {
   wire();
 }
 
+function refreshAccountLink(): void {
+  accountLink.href = `${normalizeServerUrl(serverUrlInput.value)}/accounts/me/clients/`;
+}
+
 function wire(): void {
   serverUrlInput = document.querySelector<HTMLInputElement>('#server-url')!;
   tokenInput = document.querySelector<HTMLInputElement>('#token')!;
@@ -105,10 +117,12 @@ function wire(): void {
   showSavedInput = document.querySelector<HTMLInputElement>('#show-saved')!;
   // A first visit has no stored settings, so restore() never runs; default on.
   showSavedInput.checked = true;
+  // Runs after every render, not just the first, so a language switch
+  // does not spring the panel back open on an account that already has
+  // a token.
+  document.querySelector<HTMLDetailsElement>('#create-token')!.open = !tokenAlreadyHeld;
 
-  serverUrlInput.addEventListener('change', () => {
-    accountLink.href = `${normalizeServerUrl(serverUrlInput.value)}/accounts/me/clients/`;
-  });
+  serverUrlInput.addEventListener('change', refreshAccountLink);
 
   document
     .querySelector<HTMLFormElement>('#settings-form')!
@@ -132,7 +146,9 @@ function wire(): void {
       chosenLanguage = value === '' ? null : value;
       t = createTranslator(localeFor(chosenLanguage));
       // Keep what is typed but not yet saved: rebuilding the markup
-      // would otherwise throw away a half-entered token.
+      // would otherwise throw away a half-entered token. The password is
+      // deliberately left out — it must never survive longer than the
+      // click that used it, not even across a re-render.
       const kept = {
         serverUrl: serverUrlInput.value,
         token: tokenInput.value,
@@ -144,6 +160,10 @@ function wire(): void {
       tokenInput.value = kept.token;
       identifierInput.value = kept.identifier;
       showSavedInput.checked = kept.showSaved;
+      // Restoring serverUrlInput.value above is a property assignment,
+      // which fires no `change` event — the href would otherwise go
+      // stale until the field is touched again or the page reloads.
+      refreshAccountLink();
       void persistLanguage();
     });
 }
@@ -262,17 +282,14 @@ async function restore(): Promise<void> {
   if (settings !== null) {
     chosenLanguage = settings.language;
     t = createTranslator(localeFor(chosenLanguage));
+    tokenAlreadyHeld = settings.token !== null;
   }
   render();
   if (settings === null) return;
   serverUrlInput.value = settings.serverUrl;
-  accountLink.href = `${settings.serverUrl}/accounts/me/clients/`;
+  refreshAccountLink();
   tokenInput.value = settings.token ?? '';
   showSavedInput.checked = settings.showSavedState;
-  // Minting is the first-run path; once a token is held, fold it away.
-  if (settings.token !== null) {
-    document.querySelector<HTMLDetailsElement>('#create-token')!.open = false;
-  }
 }
 
 void restore();

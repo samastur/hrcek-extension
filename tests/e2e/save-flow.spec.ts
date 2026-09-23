@@ -510,3 +510,30 @@ test('keeps the chosen language once there are settings to keep it in', async ({
   await expect(page.locator('h1')).toHaveText('Nastavitve');
   await expect(page.locator('#language')).toHaveValue('sl');
 });
+
+test('keeps the account link live and the create-token panel folded across a language switch', async ({
+  context,
+  extensionId,
+}) => {
+  await configureToken(context, extensionId);
+  const page = await openOptions(context, extensionId);
+
+  // A held token already folded the panel away, and the link already
+  // points at this server — both are restored state, not a fresh render.
+  await expect(page.locator('#create-token')).toHaveJSProperty('open', false);
+  await expect(page.locator('#account-link')).toHaveAttribute(
+    'href',
+    `${SERVER}/accounts/me/clients/`,
+  );
+
+  await page.selectOption('#language', 'sl');
+
+  // The re-render must not lose either: restoring the server address by
+  // property assignment fires no `change` event, and the fold-away check
+  // must not silently reset to the template's default `open`.
+  await expect(page.locator('#account-link')).toHaveAttribute(
+    'href',
+    `${SERVER}/accounts/me/clients/`,
+  );
+  await expect(page.locator('#create-token')).toHaveJSProperty('open', false);
+});
