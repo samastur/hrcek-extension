@@ -43,7 +43,7 @@ function filenameFor(url: string): string {
   }
 }
 
-function messageFor(error: unknown): string {
+function messageFor(error: unknown, fallback: string): string {
   // HrcekApiError carries the server's translated, person-facing message;
   // HrcekNetworkError is authored deliberately by this client. Anything
   // else is a raw runtime message — developer-facing, untranslated, and
@@ -51,7 +51,7 @@ function messageFor(error: unknown): string {
   if (error instanceof HrcekApiError || error instanceof HrcekNetworkError) {
     return error.message;
   }
-  return 'The picture could not be attached.';
+  return fallback;
 }
 
 /**
@@ -63,12 +63,18 @@ function messageFor(error: unknown): string {
  * Answers a message when the picture failed, and null when it did not.
  * A picture never fails the entry: the entry is already saved by the
  * time this runs.
+ *
+ * `fallback` is what to say when the failure carries no message worth
+ * showing. It is handed in rather than written here, because this
+ * message ends up inside a sentence the caller has already translated —
+ * and nothing in `lib/` knows which language that is.
  */
 export async function attachPicture(
   client: HrcekClient,
   entry: EntryOut,
   choice: PictureChoice,
   bytes: Blob | null,
+  fallback: string,
 ): Promise<string | null> {
   try {
     if (choice.kind === 'unchanged') return null;
@@ -83,6 +89,6 @@ export async function attachPicture(
     }
     return null;
   } catch (error) {
-    return messageFor(error);
+    return messageFor(error, fallback);
   }
 }

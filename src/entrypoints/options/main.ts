@@ -195,7 +195,13 @@ function messageFor(error: unknown): string {
     if (error.status === 404) return t('options.cannotMint');
     return error.message;
   }
-  if (error instanceof HrcekNetworkError) return error.message;
+  // Written by the client, in English. Say it in the chosen language,
+  // naming the address that was actually tried.
+  if (error instanceof HrcekNetworkError) {
+    return t('error.unreachable', {
+      server: normalizeServerUrl(serverUrlInput.value),
+    });
+  }
   return t('error.somethingWrong');
 }
 
