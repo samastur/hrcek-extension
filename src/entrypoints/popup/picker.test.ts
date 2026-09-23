@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
+import { createTranslator } from '../../lib/i18n';
 import { createPicker, type HeldPicture } from './picker';
 import type { Candidate } from '../../lib/page/candidates';
 
@@ -19,7 +20,12 @@ function mount(
 ) {
   const host = document.createElement('div');
   document.body.append(host);
-  const picker = createPicker(host, { candidates, held, existing });
+  const picker = createPicker(host, {
+    candidates,
+    held,
+    existing,
+    t: createTranslator('en'),
+  });
   return { host, picker };
 }
 
@@ -199,5 +205,35 @@ describe('createPicker', () => {
       'https://e.test/1.jpg',
       'https://e.test/2.jpg',
     ]);
+  });
+
+  it('labels its tiles in the language it was handed', () => {
+    const host = document.createElement('div');
+    createPicker(host, {
+      candidates: [
+        { url: 'https://example.com/a.jpg', width: 100, height: 80, fromHead: false },
+      ],
+      held: null,
+      existing: false,
+      t: createTranslator('sl'),
+    });
+
+    expect(host.querySelector('.tile.none')!.getAttribute('aria-label')).toBe(
+      'Brez slike',
+    );
+  });
+
+  it('says a held picture cannot be shown, rather than looking empty', () => {
+    const host = document.createElement('div');
+    createPicker(host, {
+      candidates: [],
+      held: { src: null },
+      existing: true,
+      t: createTranslator('en'),
+    });
+
+    expect(host.querySelector('.tile.held')!.getAttribute('aria-label')).toBe(
+      'It has a picture that cannot be shown here',
+    );
   });
 });
