@@ -4,6 +4,7 @@ import { HrcekClient } from '../../lib/api/client';
 import { clientFromSettings } from '../../lib/client-factory';
 import { createTranslator, localeFor, type Translator } from '../../lib/i18n';
 import { harvestCandidates } from '../../lib/page/harvest-client';
+import { showToast } from '../../lib/page/toast-client';
 import { attachPicture, fetchPictureBytes } from '../../lib/picture';
 import { loadExisting, submitSave } from '../../lib/save';
 import { loadSettings } from '../../lib/settings';
@@ -91,6 +92,22 @@ async function getPageInfo(): Promise<{ url: string; title: string }> {
 }
 
 /**
+ * The tab the save was about. In production that is the active tab, the
+ * one this popup hangs off. Under Playwright the popup IS the active
+ * tab, so the e2e build looks the page up by the address it was handed
+ * — the same seam as `?url=` above, and the same build-time constant,
+ * so neither branch is in a production bundle.
+ */
+async function targetTabId(): Promise<number | undefined> {
+  if (import.meta.env.MODE === 'e2e') {
+    const [seeded] = await browser.tabs.query({ url: pageUrl });
+    return seeded?.id;
+  }
+  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  return tab?.id;
+}
+
+/**
  * e2e builds only, and null in every other build: the popup is its own
  * tab under Playwright, so there is no page to harvest and `?candidate=`
  * stands in for what one would have offered. Same seam, and the same
@@ -110,6 +127,30 @@ function setStatus(kind: 'info' | 'success' | 'error', text: string): void {
   const status = document.querySelector<HTMLParagraphElement>('#status')!;
   status.dataset.kind = kind;
   status.textContent = text;
+}
+
+/**
+ * The save is done. Say so on the page — which outlives this popup —
+ * and then go away. The status line is set first regardless: it is what
+ * a page that cannot host a toast leaves behind, and what the e2e build
+ * reads.
+ */
+async function finish(kind: 'success' | 'error', text: string): Promise<void> {
+  setStatus(kind, text);
+  const tabId = await targetTabId();
+  if (tabId !== undefined) await showToast(tabId, text, kind);
+  closeSelf();
+}
+
+function closeSelf(): void {
+  if (import.meta.env.MODE === 'e2e') {
+    // Playwright opens the popup as an ordinary tab, and window.close()
+    // may not close a tab a script did not open. Mark the document so
+    // the test can see that the popup asked.
+    document.documentElement.dataset['hrcekClosed'] = 'true';
+    return;
+  }
+  window.close();
 }
 
 function messageFor(error: unknown): string {
@@ -312,14 +353,19 @@ async function save(): Promise<void> {
       ...(choice.kind === 'url' && bytes === null ? { imageUrl: choice.url } : {}),
     });
     // The entry exists on the server now, regardless of what the picture
-    // does below — the tick reports the entry, not the picture. Said now,
-    // not when the cached answer expires. This runs before the picture
-    // work precisely so that both of the exits below mark it held.
-    void browser.runtime.sendMessage({
-      type: 'hrcek:saved',
-      url: outcome.entry.url,
-      held: true,
-    });
+    // does below — the tick reports the entry, not the picture. Caught,
+    // not merely voided: on Chrome a message with no live listener
+    // rejects, and an unhandled rejection is noise at best. This runs
+    // before the picture work precisely so that both of the exits below
+    // mark it held.
+    void browser.runtime
+      .sendMessage({ type: 'hrcek:saved', url: outcome.entry.url, held: true })
+      .catch(() => undefined);
+
+    // The picture's bytes live only in this popup — Chrome serialises
+    // messages as JSON, so they cannot be handed to the background to
+    // finish with. The popup waits the second or two instead.
+    if (choice.kind !== 'unchanged') setStatus('info', t('popup.savingPicture'));
     // image_url is fetched inside the save's own transaction, so an
     // address the server will not go to takes the save with it. submitSave
     // posts again without the picture when that happens and reports the
@@ -328,15 +374,18 @@ async function save(): Promise<void> {
       outcome.pictureTrouble ??
       (await attachPicture(client, outcome.entry, choice, bytes));
     if (trouble !== null) {
-      // The entry stands; only the picture did not.
-      setStatus('error', t('popup.savedPictureTrouble', { reason: trouble }));
+      // The entry stands; only the picture did not. Still a close: the
+      // entry saved, which is what was asked for.
+      await finish('error', t('popup.savedPictureTrouble', { reason: trouble }));
       return;
     }
-    setStatus(
+    await finish(
       'success',
       outcome.status === 'created' ? t('popup.saved') : t('popup.updated'),
     );
   } catch (error) {
+    // The entry did not save. Stay open: this is the case where somebody
+    // must do something about it.
     setStatus('error', messageFor(error));
   }
 }
