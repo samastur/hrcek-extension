@@ -154,4 +154,68 @@ describe('createSavedState', () => {
     expect(await state.get('https://example.com/a')).toBe('not-held');
     expect(look).toHaveBeenCalledTimes(1);
   });
+
+  it('does not let mark() as the first operation erase what an earlier worker cached', async () => {
+    // Chrome can wake the worker specifically to deliver the "you just
+    // saved this" message, so mark() — not get() — can be the very first
+    // thing this context does. A write-through that fired before
+    // hydration would replace the whole store with just that one entry.
+    const store = backedStore({ 'https://example.com/old': { held: true, at: 0 } });
+    const state = createSavedState({ look: async () => true, now: () => 0, store });
+
+    state.mark('https://example.com/new', true);
+
+    // Let the write-through's hydrate-then-write chain settle.
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(await store.read()).toEqual({
+      'https://example.com/old': { held: true, at: 0 },
+      'https://example.com/new': { held: true, at: 0 },
+    });
+  });
+
+  it('does not let a stale hydration resurrect entries a reset() already cleared', async () => {
+    // A settings change can land while an earlier mark()'s hydrate-then-
+    // write is still waiting on the store. That write must not undo the
+    // reset by writing back what the (now stale) read saw.
+    let releaseRead: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      releaseRead = resolve;
+    });
+    let backing: Record<string, Entry> = {
+      'https://example.com/old': { held: true, at: 0 },
+    };
+    const writes: Record<string, Entry>[] = [];
+    const store: StateStore = {
+      read: async () => {
+        await gate;
+        return backing;
+      },
+      write: async (entries) => {
+        writes.push(entries);
+        backing = entries;
+      },
+    };
+
+    const state = createSavedState({ look: async () => true, now: () => 0, store });
+
+    // Kicks off hydration (the read is still gated) and schedules a
+    // write-through once it resolves.
+    state.mark('https://example.com/new', true);
+    // A settings change arrives before that read resolves.
+    state.reset();
+
+    releaseRead?.();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // reset()'s write of {} must be the last word — not resurrected by
+    // the stale hydration completing afterwards.
+    expect(writes[writes.length - 1]).toEqual({});
+    expect(backing).toEqual({});
+  });
 });
