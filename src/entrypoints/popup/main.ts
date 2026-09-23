@@ -7,7 +7,7 @@ import { harvestCandidates } from '../../lib/page/harvest-client';
 import { showToast } from '../../lib/page/toast-client';
 import { attachPicture, fetchPictureBytes } from '../../lib/picture';
 import { loadExisting, submitSave } from '../../lib/save';
-import { loadSettings } from '../../lib/settings';
+import { isConfigured, loadSettings } from '../../lib/settings';
 import {
   emptyForm,
   entryToForm,
@@ -413,7 +413,12 @@ async function main(): Promise<void> {
   // resolves against the browser.
   const locale = localeFor(settings?.language ?? null);
   t = createTranslator(locale);
-  if (settings === null) {
+  // A server address saved before a token is minted — the documented
+  // first-run order, since the mint panel sits below the Save button —
+  // is not configured yet. Falling through would send an unauthenticated
+  // request, get a 401, and tell somebody who never had a token that
+  // theirs was refused.
+  if (!isConfigured(settings)) {
     renderUnconfigured();
     return;
   }

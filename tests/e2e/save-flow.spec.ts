@@ -49,6 +49,25 @@ test('shows a pointer to settings when unconfigured', async ({
   await expect(popup.locator('#open-options')).toBeVisible();
 });
 
+test('says "not configured" — not "token refused" — before a token is minted', async ({
+  context,
+  extensionId,
+}) => {
+  // Saving the server address before minting is the documented first-run
+  // order: the mint panel sits below the Save button. The popup used to
+  // send an unauthenticated request, take the 401 at face value and say
+  // the token was no longer accepted. There was never a token.
+  const options = await openOptions(context, extensionId);
+  await options.fill('#server-url', SERVER);
+  await options.click('#save');
+  await expect(options.locator('#status')).toHaveAttribute('data-kind', 'success');
+  await options.close();
+
+  const popup = await openPopup(context, extensionId, 'https://example.com/a', 'A');
+  await expect(popup.locator('#app')).toContainText('not configured');
+  await expect(popup.locator('#app')).not.toContainText('no longer accepts');
+});
+
 test('options page saves settings and tests the connection', async ({
   context,
   extensionId,
