@@ -36,6 +36,8 @@ clears it outright.
 token, and is written nowhere.
 
 **Never collected:** page contents, form data, or anything beyond what
-is described above. A page's address reaches the extension only when
-you press Save or when the saved-state indicator looks it up — nothing
-runs while the extension is otherwise idle.
+is described above. The browser does hand the extension each tab's
+address as you browse — that is what the `tabs` permission is for — but
+that address leaves your browser only when you press Save, or when the
+saved-state indicator asks your Hrček about it. With the indicator off,
+nothing is sent at all until you press Save.
