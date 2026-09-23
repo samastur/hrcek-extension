@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { errorFromResponse, HrcekApiError } from './errors';
+import {
+  errorFromResponse,
+  HrcekApiError,
+  HrcekNetworkError,
+  isAuthFailure,
+} from './errors';
 
 describe('errorFromResponse', () => {
   it('parses the Hrček error envelope', async () => {
@@ -47,5 +52,20 @@ describe('errorFromResponse', () => {
 
     expect(error.status).toBe(502);
     expect(error.code).toBe('HRC-CLIENT-UNPARSEABLE');
+  });
+});
+
+describe('isAuthFailure', () => {
+  it('is true for the two statuses that mean the token is no good', () => {
+    expect(isAuthFailure(new HrcekApiError(401, 'HRC-AUTH-0003', 'Sign in.'))).toBe(true);
+    expect(isAuthFailure(new HrcekApiError(403, 'HRC-AUTH-0004', 'Not allowed.'))).toBe(
+      true,
+    );
+  });
+
+  it('is false for everything else, including being unable to ask', () => {
+    expect(isAuthFailure(new HrcekApiError(404, 'HRC-CORE-0003', 'Gone.'))).toBe(false);
+    expect(isAuthFailure(new HrcekNetworkError('No route.'))).toBe(false);
+    expect(isAuthFailure(new Error('boom'))).toBe(false);
   });
 });

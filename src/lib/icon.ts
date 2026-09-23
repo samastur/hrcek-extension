@@ -32,3 +32,18 @@ export async function setIcon(state: IconState, tabId?: number): Promise<void> {
     // The tab is gone. Nothing to repaint.
   }
 }
+
+/**
+ * The button's tooltip — the only text a toolbar button has, and so the
+ * only place a refused token can say so without a notification.
+ */
+export async function setTitle(title: string, tabId?: number): Promise<void> {
+  try {
+    await toolbarAction().setTitle({
+      title,
+      ...(tabId === undefined ? {} : { tabId }),
+    });
+  } catch {
+    // The tab is gone. Nothing to name.
+  }
+}
