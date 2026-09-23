@@ -1,65 +1,164 @@
 import { browser } from 'wxt/browser';
 import { HrcekApiError, HrcekNetworkError } from '../../lib/api/errors';
 import { anonymousClient, clientFromSettings } from '../../lib/client-factory';
+import {
+  availableLocales,
+  createTranslator,
+  localeFor,
+  type Translator,
+} from '../../lib/i18n';
+import { LOCALE_NAMES } from '../../lib/i18n/catalogues';
 import { loadSettings, normalizeServerUrl, saveSettings } from '../../lib/settings';
 import { tokenName } from '../../lib/token-name';
 import './style.css';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
-app.innerHTML = `
-  <div class="hrcek-header">
-    <img src="/icon/32.png" alt="" />
-    <span class="name">Hrček</span>
-  </div>
-  <h1>Settings</h1>
-  <form id="settings-form">
-    <div class="field">
-      <label for="server-url">Server address</label>
-      <input id="server-url" type="url" placeholder="https://hrcek.example.com" required />
-    </div>
-    <div class="field">
-      <label for="token">API token</label>
-      <input id="token" type="password" placeholder="hrcek_…" autocomplete="off" />
-    </div>
-    <div class="field">
-      <label for="show-saved"><input type="checkbox" id="show-saved" /> Show whether a page is already saved</label>
-      <p>The toolbar ticks the hamster on pages you have saved. Doing so
-         asks your Hrček about every address you visit. Turn it off and the
-         toolbar only says whether the extension is configured.</p>
-    </div>
-    <p>Paste one from <a id="account-link" href="#" target="_blank">your clients page</a>,
-       or let Hrček make one below.</p>
-    <button type="submit" id="save">Save</button>
-    <button type="button" class="quiet" id="test">Test connection</button>
-    <p id="status" data-kind="info"></p>
-  </form>
+/** The stored choice: null is Automatic. */
+let chosenLanguage: string | null = null;
+let t: Translator = createTranslator(localeFor(null));
 
-  <details id="create-token" open>
-    <summary>Create a token with your password</summary>
-    <p>Your password is used once to ask Hrček for a token, and is never
-       stored. The token appears above and is what the extension uses from
-       then on.</p>
-    <div class="field">
-      <label for="identifier">Email or display name</label>
-      <input id="identifier" autocomplete="username" />
-    </div>
-    <div class="field">
-      <label for="password">Password</label>
-      <input id="password" type="password" autocomplete="current-password" />
-    </div>
-    <button type="button" id="create">Create token</button>
-  </details>
-`;
+let serverUrlInput: HTMLInputElement;
+let tokenInput: HTMLInputElement;
+let identifierInput: HTMLInputElement;
+let passwordInput: HTMLInputElement;
+let accountLink: HTMLAnchorElement;
+let showSavedInput: HTMLInputElement;
 
-const serverUrlInput = document.querySelector<HTMLInputElement>('#server-url')!;
-const tokenInput = document.querySelector<HTMLInputElement>('#token')!;
-const identifierInput = document.querySelector<HTMLInputElement>('#identifier')!;
-const passwordInput = document.querySelector<HTMLInputElement>('#password')!;
-const accountLink = document.querySelector<HTMLAnchorElement>('#account-link')!;
-const showSavedInput = document.querySelector<HTMLInputElement>('#show-saved')!;
-// A first visit has no stored settings, so restore() never runs; default on.
-showSavedInput.checked = true;
+function escapeText(value: string): string {
+  const node = document.createElement('span');
+  node.textContent = value;
+  return node.innerHTML;
+}
+
+function languageOptions(): string {
+  // Automatic first, naming what it resolved to. Then every language in
+  // its own words — the only naming that helps somebody who has landed
+  // in a language they cannot read.
+  const resolved = localeFor(null);
+  const automatic = t('options.languageAutomatic', {
+    language: LOCALE_NAMES[resolved] ?? resolved,
+  });
+  const rows = [`<option value="">${escapeText(automatic)}</option>`];
+  for (const locale of availableLocales()) {
+    const selected = locale === chosenLanguage ? ' selected' : '';
+    rows.push(
+      `<option value="${locale}"${selected}>${escapeText(LOCALE_NAMES[locale] ?? locale)}</option>`,
+    );
+  }
+  return rows.join('');
+}
+
+function render(): void {
+  app.innerHTML = `
+    <div class="hrcek-header">
+      <img src="/icon/32.png" alt="" />
+      <span class="name">Hrček</span>
+    </div>
+    <h1>${escapeText(t('options.heading'))}</h1>
+    <form id="settings-form">
+      <div class="field">
+        <label for="server-url">${escapeText(t('options.serverUrl'))}</label>
+        <input id="server-url" type="url" placeholder="https://hrcek.example.com" required />
+      </div>
+      <div class="field">
+        <label for="token">${escapeText(t('options.token'))}</label>
+        <input id="token" type="password" placeholder="hrcek_…" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="language">${escapeText(t('options.language'))}</label>
+        <select id="language">${languageOptions()}</select>
+      </div>
+      <div class="field">
+        <label for="show-saved"><input type="checkbox" id="show-saved" /> ${escapeText(t('options.showSaved'))}</label>
+        <p>${escapeText(t('options.showSavedHelp'))}</p>
+      </div>
+      <p>${escapeText(t('options.pasteBefore'))}<a id="account-link" href="#" target="_blank">${escapeText(t('options.clientsPage'))}</a>${escapeText(t('options.pasteAfter'))}</p>
+      <button type="submit" id="save">${escapeText(t('options.save'))}</button>
+      <button type="button" class="quiet" id="test">${escapeText(t('options.test'))}</button>
+      <p id="status" data-kind="info"></p>
+    </form>
+
+    <details id="create-token" open>
+      <summary>${escapeText(t('options.createSummary'))}</summary>
+      <p>${escapeText(t('options.createHelp'))}</p>
+      <div class="field">
+        <label for="identifier">${escapeText(t('options.identifier'))}</label>
+        <input id="identifier" autocomplete="username" />
+      </div>
+      <div class="field">
+        <label for="password">${escapeText(t('options.password'))}</label>
+        <input id="password" type="password" autocomplete="current-password" />
+      </div>
+      <button type="button" id="create">${escapeText(t('options.create'))}</button>
+    </details>
+  `;
+  wire();
+}
+
+function wire(): void {
+  serverUrlInput = document.querySelector<HTMLInputElement>('#server-url')!;
+  tokenInput = document.querySelector<HTMLInputElement>('#token')!;
+  identifierInput = document.querySelector<HTMLInputElement>('#identifier')!;
+  passwordInput = document.querySelector<HTMLInputElement>('#password')!;
+  accountLink = document.querySelector<HTMLAnchorElement>('#account-link')!;
+  showSavedInput = document.querySelector<HTMLInputElement>('#show-saved')!;
+  // A first visit has no stored settings, so restore() never runs; default on.
+  showSavedInput.checked = true;
+
+  serverUrlInput.addEventListener('change', () => {
+    accountLink.href = `${normalizeServerUrl(serverUrlInput.value)}/accounts/me/clients/`;
+  });
+
+  document
+    .querySelector<HTMLFormElement>('#settings-form')!
+    .addEventListener('submit', (event) => {
+      event.preventDefault();
+      void save();
+    });
+
+  document.querySelector<HTMLButtonElement>('#create')!.addEventListener('click', () => {
+    void createToken();
+  });
+
+  document.querySelector<HTMLButtonElement>('#test')!.addEventListener('click', () => {
+    void testConnection();
+  });
+
+  document
+    .querySelector<HTMLSelectElement>('#language')!
+    .addEventListener('change', (event) => {
+      const value = (event.target as HTMLSelectElement).value;
+      chosenLanguage = value === '' ? null : value;
+      t = createTranslator(localeFor(chosenLanguage));
+      // Keep what is typed but not yet saved: rebuilding the markup
+      // would otherwise throw away a half-entered token.
+      const kept = {
+        serverUrl: serverUrlInput.value,
+        token: tokenInput.value,
+        identifier: identifierInput.value,
+        showSaved: showSavedInput.checked,
+      };
+      render();
+      serverUrlInput.value = kept.serverUrl;
+      tokenInput.value = kept.token;
+      identifierInput.value = kept.identifier;
+      showSavedInput.checked = kept.showSaved;
+      void persistLanguage();
+    });
+}
+
+/**
+ * The language is a preference, not a credential: it is stored the
+ * moment it is chosen rather than waiting for Save. There is nothing to
+ * store it in on a first visit — the Save that creates the settings
+ * carries it.
+ */
+async function persistLanguage(): Promise<void> {
+  const settings = await loadSettings();
+  if (settings === null) return;
+  await saveSettings({ ...settings, language: chosenLanguage });
+}
 
 function setStatus(kind: 'info' | 'success' | 'error', text: string): void {
   const status = document.querySelector<HTMLParagraphElement>('#status')!;
@@ -71,22 +170,14 @@ function messageFor(error: unknown): string {
   if (error instanceof HrcekApiError) {
     // Rate-limited, ten an hour by default. The throttle's reply is not
     // the Hrček error envelope, so the status is all there is to go on.
-    if (error.status === 429) {
-      return 'Too many attempts. Wait a while before trying again, or paste a token from your clients page.';
-    }
+    if (error.status === 429) return t('options.tooManyAttempts');
     // An older Hrček has no exchange route; its 404 says nothing useful.
-    if (error.status === 404) {
-      return 'This Hrček cannot make tokens for an extension. Create one on your clients page and paste it above.';
-    }
+    if (error.status === 404) return t('options.cannotMint');
     return error.message;
   }
   if (error instanceof HrcekNetworkError) return error.message;
-  return 'Something went wrong.';
+  return t('error.somethingWrong');
 }
-
-serverUrlInput.addEventListener('change', () => {
-  accountLink.href = `${normalizeServerUrl(serverUrlInput.value)}/accounts/me/clients/`;
-});
 
 /** The manifest holds no host permissions; ask for this server's origin. */
 async function requestOriginPermission(serverUrl: string): Promise<boolean> {
@@ -99,15 +190,8 @@ async function requestOriginPermission(serverUrl: string): Promise<boolean> {
   }
 }
 
-document
-  .querySelector<HTMLFormElement>('#settings-form')!
-  .addEventListener('submit', (event) => {
-    event.preventDefault();
-    void save();
-  });
-
 async function save(): Promise<void> {
-  setStatus('info', 'Saving…');
+  setStatus('info', t('options.saving'));
   try {
     const serverUrl = normalizeServerUrl(serverUrlInput.value);
     const granted = await requestOriginPermission(serverUrl);
@@ -116,22 +200,13 @@ async function save(): Promise<void> {
       serverUrl,
       token: token.length > 0 ? token : null,
       showSavedState: showSavedInput.checked,
-      language: null,
+      language: chosenLanguage,
     });
-    setStatus(
-      'success',
-      granted
-        ? 'Saved.'
-        : 'Saved. Site access was declined — press Save again to grant it.',
-    );
+    setStatus('success', granted ? t('options.saved') : t('options.savedNoAccess'));
   } catch (error) {
     setStatus('error', messageFor(error));
   }
 }
-
-document.querySelector<HTMLButtonElement>('#create')!.addEventListener('click', () => {
-  void createToken();
-});
 
 /** Where this token will show up in the owner's clients list. */
 async function nameForThisClient(): Promise<string> {
@@ -144,44 +219,39 @@ async function nameForThisClient(): Promise<string> {
 }
 
 async function createToken(): Promise<void> {
-  setStatus('info', 'Asking Hrček for a token…');
+  setStatus('info', t('options.asking'));
   try {
     const serverUrl = normalizeServerUrl(serverUrlInput.value);
     await requestOriginPermission(serverUrl);
     const name = await nameForThisClient();
-    const created = await anonymousClient(serverUrl).createToken(
-      name,
-      identifierInput.value.trim(),
-      passwordInput.value,
-    );
+    const created = await anonymousClient(
+      serverUrl,
+      localeFor(chosenLanguage),
+    ).createToken(name, identifierInput.value.trim(), passwordInput.value);
     passwordInput.value = ''; // used once, never kept
     tokenInput.value = created.token;
     await saveSettings({
       serverUrl,
       token: created.token,
       showSavedState: showSavedInput.checked,
-      language: null,
+      language: chosenLanguage,
     });
-    setStatus('success', `Saved. Token created as "${created.name}".`);
+    setStatus('success', t('options.tokenCreated', { name: created.name }));
   } catch (error) {
     setStatus('error', messageFor(error));
   }
 }
 
-document.querySelector<HTMLButtonElement>('#test')!.addEventListener('click', () => {
-  void testConnection();
-});
-
 async function testConnection(): Promise<void> {
   const settings = await loadSettings();
   if (settings === null || settings.token === null) {
-    setStatus('error', 'Save a server address and token first.');
+    setStatus('error', t('options.needServerAndToken'));
     return;
   }
-  setStatus('info', 'Testing…');
+  setStatus('info', t('options.testing'));
   try {
-    const user = await clientFromSettings(settings).me();
-    setStatus('success', `Connected as ${user.email}.`);
+    const user = await clientFromSettings(settings, localeFor(chosenLanguage)).me();
+    setStatus('success', t('options.connectedAs', { email: user.email }));
   } catch (error) {
     setStatus('error', messageFor(error));
   }
@@ -189,6 +259,11 @@ async function testConnection(): Promise<void> {
 
 async function restore(): Promise<void> {
   const settings = await loadSettings();
+  if (settings !== null) {
+    chosenLanguage = settings.language;
+    t = createTranslator(localeFor(chosenLanguage));
+  }
+  render();
   if (settings === null) return;
   serverUrlInput.value = settings.serverUrl;
   accountLink.href = `${settings.serverUrl}/accounts/me/clients/`;

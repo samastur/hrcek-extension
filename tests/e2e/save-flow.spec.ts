@@ -480,3 +480,33 @@ test('says what to do when the server cannot mint tokens', async ({
   await expect(options.locator('#status')).toHaveAttribute('data-kind', 'error');
   await expect(options.locator('#status')).toContainText('clients page');
 });
+
+test('speaks the language the settings page chose', async ({ context, extensionId }) => {
+  const page = await openOptions(context, extensionId);
+
+  // Automatic names the language it resolved to, so "automatic" is
+  // never a mystery.
+  await expect(page.locator('#language option[value=""]')).toContainText('Automatic');
+  await expect(page.locator('h1')).toHaveText('Settings');
+
+  await page.selectOption('#language', 'sl');
+  // Re-rendered immediately, not on the next open — this is a page
+  // somebody may never return to.
+  await expect(page.locator('h1')).toHaveText('Nastavitve');
+  await expect(page.locator('#save')).toHaveText('Shrani');
+});
+
+test('keeps the chosen language once there are settings to keep it in', async ({
+  context,
+  extensionId,
+}) => {
+  await configureToken(context, extensionId);
+  const page = await openOptions(context, extensionId);
+
+  await page.selectOption('#language', 'sl');
+  await expect(page.locator('h1')).toHaveText('Nastavitve');
+
+  await page.reload();
+  await expect(page.locator('h1')).toHaveText('Nastavitve');
+  await expect(page.locator('#language')).toHaveValue('sl');
+});
