@@ -481,6 +481,61 @@ test('says what to do when the server cannot mint tokens', async ({
   await expect(options.locator('#status')).toContainText('clients page');
 });
 
+test('closes itself after saving and says so on the page', async ({
+  context,
+  extensionId,
+}) => {
+  await configureToken(context, extensionId);
+
+  // A real page, in its own tab, for the toast to land on.
+  const page = await context.newPage();
+  await page.goto(`${SERVER}/`);
+
+  const popup = await openPopup(context, extensionId, `${SERVER}/`, 'Fake Hrček');
+  await popup.click('#save');
+
+  // The popup asked to close. Playwright opened it as an ordinary tab,
+  // which window.close() cannot touch, so the e2e build marks the
+  // document instead of vanishing.
+  await expect(popup.locator('html')).toHaveAttribute('data-hrcek-closed', 'true');
+
+  // And the confirmation is on the page, inside a shadow root.
+  const toast = page.locator('#__hrcek-toast');
+  await expect(toast).toBeAttached();
+  await expect
+    .poll(() => toast.evaluate((host: HTMLElement) => host.shadowRoot?.textContent ?? ''))
+    .toContain('Saved.');
+});
+
+test('stays open when the entry itself could not be saved', async ({
+  context,
+  extensionId,
+}) => {
+  await configureToken(context, extensionId);
+  const popup = await context.newPage();
+  // The save was refused: this is the case where somebody must act, so
+  // the popup must not disappear with the reason.
+  await popup.route('**/api/entries/', (route) =>
+    route.fulfill({
+      status: 422,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: {
+          code: 'HRC-CORE-0002',
+          message: 'The submitted data is not valid.',
+          details: {},
+        },
+      }),
+    }),
+  );
+  const query = new URLSearchParams({ url: 'https://example.com/refused', title: 'R' });
+  await popup.goto(`chrome-extension://${extensionId}/popup.html?${query}`);
+
+  await popup.click('#save');
+  await expect(popup.locator('#status')).toHaveAttribute('data-kind', 'error');
+  await expect(popup.locator('html')).not.toHaveAttribute('data-hrcek-closed', 'true');
+});
+
 test('speaks the language the settings page chose', async ({ context, extensionId }) => {
   const page = await openOptions(context, extensionId);
 
