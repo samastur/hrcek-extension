@@ -35,6 +35,14 @@ textarea {
   margin-top: 0.35rem;
 }
 
+/* A note about something that did not load. Not the status line: the
+   save itself is unaffected, and this outlives any status. */
+.trouble {
+  margin: 0 0 0.55rem;
+  font-size: 0.72rem;
+  color: var(--danger);
+}
+
 #fields {
   margin-bottom: 0.55rem;
 }

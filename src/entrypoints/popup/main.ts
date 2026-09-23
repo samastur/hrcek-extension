@@ -38,6 +38,8 @@ let pageUrl = '';
 let renderedFields: FieldInput[] = [];
 /** Loaded once in main(); null when GET /api/fields/ could not be read. */
 let definitions: FieldOut[] | null = null;
+/** True when that read failed, as opposed to answering no fields at all. */
+let fieldsFailed = false;
 /** The mounted tags chip input; remounted by every renderForm() call. */
 let chips: ChipInput | null = null;
 /** The mounted picture picker; remounted by every renderForm() call. */
@@ -240,6 +242,7 @@ function renderForm(form: FormState, existing: boolean): void {
       <div class="field"><label for="notes">${escapeText(t('popup.notes'))}</label><textarea id="notes" rows="3"></textarea></div>
       <div class="field" id="picture-field"><label>${escapeText(t('popup.picture'))}</label><div id="picture"></div></div>
       <div class="field"><label>${escapeText(t('popup.tags'))}</label><div id="tags"></div></div>
+      ${fieldsFailed ? `<p id="fields-trouble" class="trouble">${escapeText(t('popup.fieldsUnavailable'))}</p>` : ''}
       ${fieldsMarkup(form.fields)}
       <button type="submit" id="save">${escapeText(existing ? t('popup.update') : t('popup.save'))}</button>
       <p id="status" data-kind="info"></p>
@@ -412,9 +415,15 @@ async function main(): Promise<void> {
   }
   // Not fatal: without them the form falls back to the entry's own keys,
   // which is enough to show and re-send what the entry already holds.
+  // Worth saying, though — an account with fields that silently shows
+  // none looks exactly like an account without any.
   definitions = await client.listFields().then(
     (fields) => fields,
-    () => null,
+    (error: unknown) => {
+      console.warn('[hrcek] could not read the account’s fields', error);
+      fieldsFailed = true;
+      return null;
+    },
   );
   try {
     const existing = url.length > 0 ? await loadExisting(client, url) : null;

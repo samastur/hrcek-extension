@@ -592,3 +592,23 @@ test('keeps the account link live and the create-token panel folded across a lan
   );
   await expect(page.locator('#create-token')).toHaveJSProperty('open', false);
 });
+
+test('says when your fields could not be read, instead of hiding them', async ({
+  context,
+  extensionId,
+}) => {
+  await configureToken(context, extensionId);
+  const popup = await context.newPage();
+  await popup.route('**/api/fields/**', (route) => route.abort('failed'));
+  const query = new URLSearchParams({ url: 'https://example.com/fieldless', title: 'F' });
+  await popup.goto(`chrome-extension://${extensionId}/popup.html?${query}`);
+
+  // Silence here reads as "this account has no fields", which is a
+  // different and wrong thing.
+  await expect(popup.locator('#fields-trouble')).toContainText(
+    'fields could not be loaded',
+  );
+  // Saving is still allowed: omitted fields are patched, not cleared.
+  await popup.click('#save');
+  await expect(popup.locator('#status')).toContainText('Saved.');
+});
