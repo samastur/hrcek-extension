@@ -1,5 +1,7 @@
 {
   "error.somethingWrong": "Nekaj je šlo narobe.",
+  "error.unreachable": "Strežnika {server} ni bilo mogoče doseči.",
+  "error.pictureNotAttached": "Slike ni bilo mogoče priložiti.",
 
   "toolbar.name": "Hrček",
   "toolbar.signInAgain": "Hrček: prijavite se znova",

@@ -158,7 +158,11 @@ function closeSelf(): void {
 function messageFor(error: unknown): string {
   // The server's message is translated and made for people — show it.
   if (error instanceof HrcekApiError) return error.message;
-  if (error instanceof HrcekNetworkError) return error.message;
+  // This one is written by the client, in English. Say it here instead,
+  // in the language the rest of the popup is speaking.
+  if (error instanceof HrcekNetworkError) {
+    return t('error.unreachable', { server: settings?.serverUrl ?? '' });
+  }
   return t('error.somethingWrong');
 }
 
@@ -389,7 +393,13 @@ async function save(): Promise<void> {
     // reason here — the entry stands either way.
     const trouble =
       outcome.pictureTrouble ??
-      (await attachPicture(client, outcome.entry, choice, bytes));
+      (await attachPicture(
+        client,
+        outcome.entry,
+        choice,
+        bytes,
+        t('error.pictureNotAttached'),
+      ));
     if (trouble !== null) {
       // The entry stands; only the picture did not. Still a close: the
       // entry saved, which is what was asked for.

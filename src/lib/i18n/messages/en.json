@@ -1,5 +1,7 @@
 {
   "error.somethingWrong": "Something went wrong.",
+  "error.unreachable": "Could not reach {server}.",
+  "error.pictureNotAttached": "The picture could not be attached.",
 
   "toolbar.name": "Hrček",
   "toolbar.signInAgain": "Hrček: sign in again",

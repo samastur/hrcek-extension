@@ -81,6 +81,24 @@ describe('the catalogues', () => {
     }
   });
 
+  it('say the two messages the client authors itself, in every language', () => {
+    // These are the only person-facing strings not written by the
+    // server: "could not reach it" and "the picture did not attach".
+    // Both used to be hard-coded English inside lib/, which showed
+    // through in the middle of an otherwise translated sentence.
+    for (const [locale, messages] of Object.entries(CATALOGUES)) {
+      const unreachable = messages['error.unreachable'];
+      expect(unreachable, `${locale} cannot say the server is unreachable`).toBeTruthy();
+      expect(unreachable, `${locale}.error.unreachable names no server`).toContain(
+        '{server}',
+      );
+      expect(
+        messages['error.pictureNotAttached'],
+        `${locale} cannot say a picture did not attach`,
+      ).toBeTruthy();
+    }
+  });
+
   it('name every language in its own words', () => {
     for (const locale of Object.keys(CATALOGUES)) {
       expect(LOCALE_NAMES[locale]).toBeTruthy();
