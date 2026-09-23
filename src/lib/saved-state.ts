@@ -100,14 +100,23 @@ export function createSavedState(options: {
       const pending = inFlight.get(url);
       if (pending !== undefined) return pending;
 
+      // A reset() while this is on the wire means the answer is about an
+      // account, or a token, that no longer applies. Both settle handlers
+      // check it: a stale "held" would be written into a cache that was
+      // just cleared, and a stale 401 would relatch a refusal the person
+      // has already fixed — which on Firefox's persistent background
+      // would stand until the browser restarts.
+      const startedAt = generation;
       const request = options
         .look(url)
         .then(
           (held): Answer => {
+            if (startedAt !== generation) return 'unknown';
             remember(url, held);
             return held ? 'held' : 'not-held';
           },
           (error: unknown): Answer => {
+            if (startedAt !== generation) return 'unknown';
             // Not remembered: a failure must not harden into an answer.
             if (options.isUnauthorized?.(error) === true) {
               unauthorized = true;
@@ -116,6 +125,10 @@ export function createSavedState(options: {
             return 'unknown';
           },
         )
+        // Deletes by url, not by identity: an old request settling after
+        // a reset() can therefore drop a newer entry for the same address
+        // from inFlight. That costs one duplicate request, never a wrong
+        // answer, and is cheaper than tracking promise identity.
         .finally(() => inFlight.delete(url));
 
       inFlight.set(url, request);
@@ -129,6 +142,9 @@ export function createSavedState(options: {
     reset(): void {
       unauthorized = false;
       cache.clear();
+      // Anything still on the wire was asked under the old settings: a
+      // caller arriving now must not be handed that pending answer.
+      inFlight.clear();
       hydrated = null;
       generation++;
       void options.store?.write({});
