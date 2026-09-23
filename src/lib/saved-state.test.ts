@@ -116,6 +116,44 @@ describe('createSavedState', () => {
     expect(look).toHaveBeenCalledTimes(2);
   });
 
+  it('does not let a lookup already in flight relatch a refusal after reset()', async () => {
+    // The ordinary sequence for fixing a dead token: a tab switch puts a
+    // doomed lookup on the wire, the person pastes a working token, and
+    // only then does the 401 come back. That answer is about the old
+    // token and must not speak for the new one — on Firefox the
+    // background is persistent, so a latch set here would outlive
+    // everything short of a browser restart.
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let reachedTheWire: (() => void) | undefined;
+    const onTheWire = new Promise<void>((resolve) => {
+      reachedTheWire = resolve;
+    });
+    const look = vi.fn(async (): Promise<boolean> => {
+      // Only the first ask carries the dead token; the reset() below
+      // stands for the person pasting a working one.
+      if (look.mock.calls.length > 1) return true;
+      reachedTheWire?.();
+      await gate;
+      throw new HrcekApiError(401, 'HRC-AUTH-0003', 'You must sign in to do that.');
+    });
+    const state = createSavedState({ look, now: () => 0, isUnauthorized: isAuthFailure });
+
+    const doomed = state.get('https://example.com/a');
+    // Not just requested — actually in flight, which is the whole race.
+    await onTheWire;
+    state.reset();
+    release?.();
+
+    // The stale answer speaks for nobody.
+    expect(await doomed).toBe('unknown');
+    // And the question is asked again, of the new token.
+    expect(await state.get('https://example.com/a')).toBe('held');
+    expect(look).toHaveBeenCalledTimes(2);
+  });
+
   it('keeps answering "unknown" for a blip, which is not an answer', async () => {
     const { state, look } = harness(async () => {
       throw new HrcekNetworkError('No route to host.');
