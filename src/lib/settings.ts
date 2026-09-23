@@ -33,6 +33,16 @@ const settingsItem = storage.defineItem<
   | null
 >('local:settings', { fallback: null });
 
+/**
+ * Whether there is enough here to talk to a Hrček at all. A server
+ * address saved before a token is minted is the documented first-run
+ * order, and it is not a refused token — every part of the extension
+ * must agree about that, so they all ask here.
+ */
+export function isConfigured(settings: Settings | null): settings is Settings {
+  return settings !== null && settings.token !== null;
+}
+
 export function normalizeServerUrl(raw: string): string {
   return raw.trim().replace(/\/+$/, '');
 }

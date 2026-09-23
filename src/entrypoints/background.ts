@@ -1,12 +1,13 @@
 import { browser } from 'wxt/browser';
 import { isAuthFailure } from '../lib/api/errors';
+import { badgeForAnswer, isSaveable, planBadge } from '../lib/badge';
 import { clientFromSettings } from '../lib/client-factory';
 import { createTranslator, localeFor, type Translator } from '../lib/i18n';
-import { setIcon, setTitle, type IconState } from '../lib/icon';
+import { setIcon, setTitle } from '../lib/icon';
 import { sessionStore } from '../lib/platform/session-store';
 import { loadExisting } from '../lib/save';
-import { createSavedState } from '../lib/saved-state';
-import { loadSettings } from '../lib/settings';
+import { createSavedState, type Answer } from '../lib/saved-state';
+import { isConfigured, loadSettings } from '../lib/settings';
 
 /** Long enough that flicking through tabs costs one request, not ten. */
 const LOOKUP_DELAY_MS = 400;
@@ -22,7 +23,7 @@ async function refreshLanguage(): Promise<void> {
 const savedState = createSavedState({
   look: async (url) => {
     const settings = await loadSettings();
-    if (settings === null || settings.token === null) throw new Error('not configured');
+    if (!isConfigured(settings)) throw new Error('not configured');
     return (
       (await loadExisting(
         clientFromSettings(settings, localeFor(settings.language)),
@@ -39,11 +40,6 @@ const savedState = createSavedState({
 
 let pending: ReturnType<typeof setTimeout> | undefined;
 
-/** Nothing to save on about:, chrome:// or a file the browser is rendering. */
-function isSaveable(url: string | undefined): url is string {
-  return url !== undefined && (url.startsWith('http://') || url.startsWith('https://'));
-}
-
 /**
  * The toolbar button's resting state, with no tab in mind. Painted once at
  * start and again whenever settings change, so a window whose tabs fire
@@ -51,34 +47,31 @@ function isSaveable(url: string | undefined): url is string {
  * manifest's default colour icon.
  */
 async function paintGlobal(): Promise<void> {
-  const settings = await loadSettings();
-  const configured = settings !== null && settings.token !== null;
-  await setIcon(configured ? 'configured' : 'unconfigured');
+  await setIcon(isConfigured(await loadSettings()) ? 'configured' : 'unconfigured');
 }
 
-async function paint(tabId: number, url: string | undefined): Promise<void> {
+/**
+ * Wiring only: what to show is `planBadge`'s to decide, in `lib/badge.ts`
+ * where it can be tested. `known` carries an answer that needs no
+ * request — the save this repaint is confirming.
+ */
+async function paint(
+  tabId: number,
+  url: string | undefined,
+  known?: Answer,
+): Promise<void> {
   const settings = await loadSettings();
-  const configured = settings !== null && settings.token !== null;
-  if (!configured) return setIcon('unconfigured', tabId);
-  if (!settings.showSavedState || !isSaveable(url)) return setIcon('configured', tabId);
+  const plan = planBadge({ settings, url, known });
+  await setIcon(plan.icon, tabId);
+  await setTitle(t(plan.title), tabId);
+  if (!plan.ask || !isSaveable(url)) return;
 
-  // Colour until proven ticked. A failure leaves it here: "we could not
-  // ask" is not "you have not saved it".
-  await setIcon('configured', tabId);
-  await setTitle(t('toolbar.name'), tabId);
   clearTimeout(pending);
   pending = setTimeout(() => {
     void savedState.get(url).then(async (answer) => {
-      if (answer === 'unauthorized') {
-        // Grey, like unconfigured — because in every way that matters it
-        // is: nothing works until there is a new token. The tooltip says
-        // which of the two it is.
-        await setIcon('unconfigured', tabId);
-        await setTitle(t('toolbar.signInAgain'), tabId);
-        return;
-      }
-      const state: IconState = answer === 'held' ? 'saved' : 'configured';
-      await setIcon(state, tabId);
+      const settled = badgeForAnswer(answer);
+      await setIcon(settled.icon, tabId);
+      await setTitle(t(settled.title), tabId);
     });
   }, LOOKUP_DELAY_MS);
 }
@@ -107,12 +100,15 @@ export default defineBackground(() => {
     const saved = message as { type?: string; url?: string; held?: boolean };
     if (saved.type !== 'hrcek:saved' || saved.url === undefined) return undefined;
     const url = saved.url;
-    savedState.mark(url, saved.held ?? true);
+    const held = saved.held ?? true;
+    savedState.mark(url, held);
     // Repaint with the address the message carried, not a freshly-queried
     // tab.url — they can differ (trailing slash, www., case), and the
-    // point is to reflect the entry that was just marked.
+    // point is to reflect the entry that was just marked. The answer
+    // travels with it: this repaint must say so even with the indicator
+    // off, and it costs no request to do it.
     void browser.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
-      if (tab?.id !== undefined) void paint(tab.id, url);
+      if (tab?.id !== undefined) void paint(tab.id, url, held ? 'held' : 'not-held');
     });
     return undefined;
   });
