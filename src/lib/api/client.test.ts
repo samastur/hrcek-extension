@@ -78,11 +78,14 @@ describe('HrcekClient', () => {
     });
   });
 
-  it('getEntryByUrl() url-encodes the address as a query parameter', async () => {
+  it('getEntryByUrl() sends the address in the body, never in the URL', async () => {
+    // The whole point of the route being a POST: an address is the
+    // private half of an entry, and a query string is written into every
+    // access log, proxy and error report the request passes through.
     server.use(
-      http.get(`${BASE}/api/entries/by-url/`, ({ request }) => {
-        const url = new URL(request.url);
-        expect(url.searchParams.get('url')).toBe('https://example.com/a?b=c&d=e');
+      http.post(`${BASE}/api/entries/lookup`, async ({ request }) => {
+        expect(new URL(request.url).search).toBe('');
+        expect(await request.json()).toEqual({ url: 'https://example.com/a?b=c&d=e' });
         return HttpResponse.json(ENTRY);
       }),
     );
@@ -92,7 +95,7 @@ describe('HrcekClient', () => {
 
   it('throws HrcekApiError with the server code on failure', async () => {
     server.use(
-      http.get(`${BASE}/api/entries/by-url/`, () =>
+      http.post(`${BASE}/api/entries/lookup`, () =>
         HttpResponse.json(
           {
             error: {

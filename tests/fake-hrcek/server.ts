@@ -310,8 +310,11 @@ export async function startFakeHrcek(port = 0): Promise<FakeHrcek> {
         return json(res, 200, FAKE_USER);
       }
 
-      if (route === 'GET /api/entries/by-url/') {
-        const url = requestUrl.searchParams.get('url') ?? '';
+      // A POST for a read: the address is the private half of an entry and
+      // must stay out of query strings, which every access log records.
+      if (route === 'POST /api/entries/lookup') {
+        const body = (await readBody(req)) as { url?: unknown };
+        const url = typeof body.url === 'string' ? body.url : '';
         const entry = entries.get(normalizeUrl(url));
         if (entry === undefined) {
           return json(

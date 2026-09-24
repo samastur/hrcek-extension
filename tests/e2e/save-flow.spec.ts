@@ -29,6 +29,19 @@ async function configureToken(
   await page.close();
 }
 
+/** What the server holds at an address, asked the way a client must ask. */
+async function heldEntry(address: string) {
+  const response = await fetch(`${SERVER}/api/entries/lookup`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${FAKE_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ url: address }),
+  });
+  return response.json();
+}
+
 async function openPopup(
   context: BrowserContext,
   extensionId: string,
@@ -217,12 +230,12 @@ test('a failed initial lookup does not let Save blind-replace an existing entry'
   await setup.close();
 
   // Simulate a network blip on the popup's initial look-before-write only;
-  // let any later by-url lookup (the save-time retry) through normally.
+  // let any later lookup (the save-time retry) through normally.
   const popup = await context.newPage();
-  let byUrlCalls = 0;
-  await popup.route('**/api/entries/by-url/**', async (route) => {
-    byUrlCalls += 1;
-    if (byUrlCalls === 1) {
+  let lookupCalls = 0;
+  await popup.route('**/api/entries/lookup', async (route) => {
+    lookupCalls += 1;
+    if (lookupCalls === 1) {
       await route.abort('failed');
       return;
     }
@@ -324,11 +337,7 @@ test('saves the entry even when the server refuses the picture, and says so', as
   await expect(status).toContainText('could not be attached');
   await expect(status).toContainText('That image could not be fetched.');
 
-  const entry = await (
-    await fetch(`${SERVER}/api/entries/by-url/?url=${encodeURIComponent(address)}`, {
-      headers: { Authorization: `Bearer ${FAKE_TOKEN}` },
-    })
-  ).json();
+  const entry = await heldEntry(address);
   expect(entry.title).toBe('CDN hosted');
   expect(entry.image).toBeNull();
 });
@@ -369,11 +378,7 @@ test('shows the picture an entry already holds, fetched with the token', async (
   await popup.fill('#title', 'Illustrated, revisited');
   await popup.click('#save');
   await expect(popup.locator('#status')).toContainText('Updated.');
-  const entry = await (
-    await fetch(`${SERVER}/api/entries/by-url/?url=${encodeURIComponent(address)}`, {
-      headers: { Authorization: `Bearer ${FAKE_TOKEN}` },
-    })
-  ).json();
+  const entry = await heldEntry(address);
   expect(entry.image).not.toBeNull();
 });
 
@@ -424,11 +429,7 @@ test('previews pictures while you click through them, and puts the preview away 
   // And the picture the last click chose is the one that is kept.
   await popup.click('#save');
   await expect(popup.locator('#status')).toContainText('Updated.');
-  const entry = await (
-    await fetch(`${SERVER}/api/entries/by-url/?url=${encodeURIComponent(address)}`, {
-      headers: { Authorization: `Bearer ${FAKE_TOKEN}` },
-    })
-  ).json();
+  const entry = await heldEntry(address);
   expect(entry.image).not.toBeNull();
   expect(entry.tags).toEqual(['reading']);
 });
@@ -461,11 +462,7 @@ test('keeps the tags and fields an entry holds when only the title changes', asy
   await popup.click('#save');
   await expect(popup.locator('#status')).toContainText('Updated.');
 
-  const entry = await (
-    await fetch(`${SERVER}/api/entries/by-url/?url=${encodeURIComponent(address)}`, {
-      headers: { Authorization: `Bearer ${FAKE_TOKEN}` },
-    })
-  ).json();
+  const entry = await heldEntry(address);
   expect(entry.title).toBe('After');
   // POST replaces entry attributes, so the tag only survives because the
   // form resent it. fields is PATCHED, not replaced, so a stale Price would

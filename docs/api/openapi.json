@@ -124,6 +124,18 @@
         "title": "EntryIn",
         "type": "object"
       },
+      "EntryLookupIn": {
+        "description": "The address to look up.\n\nIn a body rather than a query string: an address is the private\npart of an entry, and a query string is written into every access\nlog the request passes through.",
+        "properties": {
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": ["url"],
+        "title": "EntryLookupIn",
+        "type": "object"
+      },
       "EntryOut": {
         "properties": {
           "created_at": {
@@ -789,21 +801,21 @@
         "tags": ["entries"]
       }
     },
-    "/api/entries/by-url/": {
-      "get": {
-        "description": "Answer the entry held at *url*, so a client can compare.\n\nPosting is an upsert, which leaves a client no way to ask what an\naddress currently says before writing over it. Listing and filtering\nclient-side is the wrong shape once somebody holds thousands of\nentries.\n\nDeclared before any /{id}/ route: whoever adds one must keep it\nbelow this, or \"by-url\" will be read as an id.",
-        "operationId": "get_entry_by_url",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "url",
-            "required": true,
-            "schema": {
-              "title": "Url",
-              "type": "string"
+    "/api/entries/lookup": {
+      "post": {
+        "description": "Answer the entry held at an address, so a client can compare.\n\nPosting an entry is an upsert, which leaves a client no way to ask\nwhat an address currently says before writing over it. Listing and\nfiltering client-side is the wrong shape once somebody holds\nthousands of entries.\n\nThe address arrives in the body, never in the query string. An\naddress is the private half of an entry — what somebody reads —\nand a query string is written into the web server's access log,\ninto any proxy in front, and onto Sentry events. A body is not.",
+        "operationId": "lookup_entry",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntryLookupIn"
+              }
             }
-          }
-        ],
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
@@ -824,7 +836,7 @@
             "SessionAuth": []
           }
         ],
-        "summary": "Get Entry By Url",
+        "summary": "Lookup Entry",
         "tags": ["entries"]
       }
     },

@@ -30,6 +30,15 @@ async function post(body: unknown, headers: Record<string, string> = JSON_AUTH) 
   });
 }
 
+/** A read, but a POST: the address must not reach a query string. */
+async function lookup(url: string) {
+  return fetch(`${fake.url}/api/entries/lookup`, {
+    method: 'POST',
+    headers: JSON_AUTH,
+    body: JSON.stringify({ url }),
+  });
+}
+
 describe('fake hrcek', () => {
   it('reports health without credentials', async () => {
     const response = await fetch(`${fake.url}/api/health`);
@@ -156,28 +165,32 @@ describe('fake hrcek', () => {
     });
     expect(response.status).toBe(204);
 
-    const held = await fetch(
-      `${fake.url}/api/entries/by-url/?url=${encodeURIComponent('https://example.com/has-pic')}`,
-      { headers: AUTH },
-    );
+    const held = await lookup('https://example.com/has-pic');
     expect((await held.json()).image).toBeNull();
   });
 
-  it('answers by-url with the held entry, 404 with HRC-CORE-0003 otherwise', async () => {
+  it('answers a lookup with the held entry, 404 with HRC-CORE-0003 otherwise', async () => {
     await post({ url: 'https://example.com/held' });
-    const held = await fetch(
-      `${fake.url}/api/entries/by-url/?url=${encodeURIComponent('https://example.com/held')}`,
-      { headers: AUTH },
-    );
+    const held = await lookup('https://example.com/held');
     expect(held.status).toBe(200);
     expect((await held.json()).url).toBe('https://example.com/held');
 
-    const missing = await fetch(
-      `${fake.url}/api/entries/by-url/?url=${encodeURIComponent('https://example.com/no')}`,
-      { headers: AUTH },
-    );
+    const missing = await lookup('https://example.com/no');
     expect(missing.status).toBe(404);
     expect((await missing.json()).error.code).toBe('HRC-CORE-0003');
+  });
+
+  it('will not answer a lookup from a query string', async () => {
+    // The route moved to a POST so addresses stay out of access logs. A
+    // fake that still honoured the old shape would let a client regress
+    // to it without a single test going red.
+    await post({ url: 'https://example.com/held' });
+    const query = encodeURIComponent('https://example.com/held');
+    const response = await fetch(`${fake.url}/api/entries/by-url/?url=${query}`, {
+      headers: AUTH,
+    });
+
+    expect(response.status).toBe(404);
   });
 
   it('logs in with cookies and enforces CSRF on session posts', async () => {

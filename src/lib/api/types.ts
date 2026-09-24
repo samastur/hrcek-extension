@@ -1,6 +1,7 @@
 import type { components } from './types.gen';
 
 export type EntryIn = components['schemas']['EntryIn'];
+export type EntryLookupIn = components['schemas']['EntryLookupIn'];
 export type EntryOut = components['schemas']['EntryOut'];
 export type UserOut = components['schemas']['UserOut'];
 export type HealthOut = components['schemas']['HealthOut'];
