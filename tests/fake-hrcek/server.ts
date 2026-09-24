@@ -493,9 +493,12 @@ export async function startFakeHrcek(port = 0): Promise<FakeHrcek> {
       nextTokenId = 1;
     },
     close() {
-      return new Promise((resolve, reject) =>
-        server.close((error) => (error ? reject(error) : resolve())),
-      );
+      return new Promise((resolve, reject) => {
+        // A browser leaves keep-alive sockets open, and `close()` alone
+        // waits for every one of them — which is forever. Drop them first.
+        server.closeAllConnections();
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
     },
   };
 }
