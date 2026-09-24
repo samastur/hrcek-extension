@@ -50,8 +50,10 @@ export default defineConfig({
     ...(browser === 'firefox'
       ? {
           browser_specific_settings: {
-            // Placeholder AMO id — revisit before first AMO submission.
-            gecko: { id: 'hrcek@samastur.com' },
+            // Final AMO id: valid and unique, and fine to ship as-is.
+            // Can still change right up to the first AMO upload — after
+            // that, never.
+            gecko: { id: 'hrcek@markos.gaivo.net' },
           },
         }
       : {}),

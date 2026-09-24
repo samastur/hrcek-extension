@@ -1,10 +1,13 @@
 # Hrček extension — working agreement
 
 Browser extension clients for the Hrček link-saving service. Firefox
-ships first; Chrome and Safari build from the same code. The server
-lives in `../hrcek` — its API guide is `../hrcek/docs/dev/api.md`, its
-error codes `../hrcek/docs/dev/error-codes.md`, and its OpenAPI schema
-is vendored here at `docs/api/openapi.json`.
+ships first; Chrome is a verified build target too, and Safari builds
+from the same code. The popup and options page follow the browser's
+language automatically; a person can also pick one by hand in settings.
+The server lives in `../hrcek` — its API guide is
+`../hrcek/docs/dev/api.md`, its error codes
+`../hrcek/docs/dev/error-codes.md`, and its OpenAPI schema is vendored
+here at `docs/api/openapi.json`.
 
 Design spec: `docs/superpowers/specs/2026-09-16-hrcek-extension-design.md`.
 
@@ -22,6 +25,8 @@ Design spec: `docs/superpowers/specs/2026-09-16-hrcek-extension-design.md`.
   `prepare` script points `core.hooksPath` at `.githooks`). The
   end-to-end suite is too slow for the hook and runs in CI instead.
 - `pnpm build` / `pnpm zip` — Firefox production build / AMO zip
+- `pnpm build:chrome` / `pnpm zip:chrome` — Chrome production build /
+  Chrome Web Store zip
 - `pnpm refresh-schema` — re-vendor `openapi.json` from `../hrcek` and
   regenerate `src/lib/api/types.gen.ts`. Run when the server API changes.
 
@@ -88,7 +93,9 @@ Design spec: `docs/superpowers/specs/2026-09-16-hrcek-extension-design.md`.
   request and push to `main`. Never commit with `--no-verify` to dodge
   a failing test — fix the test or the code.
 
-## Before AMO submission (future)
+## Store paperwork
 
-- Replace the placeholder gecko id in `wxt.config.ts`.
-- Add real icons.
+`docs/store/permissions.md` and `docs/store/privacy.md` are the
+permission justifications and privacy statement written for store
+reviewers. Update them alongside any change that adds a permission,
+adds a host the extension talks to, or changes what is stored or sent.
