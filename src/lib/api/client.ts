@@ -1,6 +1,7 @@
 import { errorFromResponse, HrcekNetworkError } from './errors';
 import type {
   EntryIn,
+  EntryLookupIn,
   EntryOut,
   FieldOut,
   HealthOut,
@@ -60,9 +61,20 @@ export class HrcekClient {
     return response.json();
   }
 
+  /**
+   * The entry held at an address, for looking before writing. 404 with
+   * `HRC-CORE-0003` means you do not hold it — which is also what somebody
+   * else holding it answers, deliberately: a 403 would reveal that they do.
+   *
+   * A POST for a read, and the address travels in the body: an address is
+   * the private half of an entry, and a query string is written into every
+   * access log, proxy and error report the request passes through. Hrček
+   * logs the path and never the query string, but the hops in front of it
+   * are not Hrček's to control.
+   */
   async getEntryByUrl(url: string): Promise<EntryOut> {
-    const query = new URLSearchParams({ url });
-    return (await this.request('GET', `/api/entries/by-url/?${query}`)).json();
+    const body: EntryLookupIn = { url };
+    return (await this.request('POST', '/api/entries/lookup', body)).json();
   }
 
   /**

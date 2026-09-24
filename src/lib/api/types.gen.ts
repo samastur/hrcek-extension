@@ -146,28 +146,30 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/entries/by-url/': {
+  '/api/entries/lookup': {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /**
-     * Get Entry By Url
-     * @description Answer the entry held at *url*, so a client can compare.
-     *
-     *     Posting is an upsert, which leaves a client no way to ask what an
-     *     address currently says before writing over it. Listing and filtering
-     *     client-side is the wrong shape once somebody holds thousands of
-     *     entries.
-     *
-     *     Declared before any /{id}/ route: whoever adds one must keep it
-     *     below this, or "by-url" will be read as an id.
-     */
-    get: operations['get_entry_by_url'];
+    get?: never;
     put?: never;
-    post?: never;
+    /**
+     * Lookup Entry
+     * @description Answer the entry held at an address, so a client can compare.
+     *
+     *     Posting an entry is an upsert, which leaves a client no way to ask
+     *     what an address currently says before writing over it. Listing and
+     *     filtering client-side is the wrong shape once somebody holds
+     *     thousands of entries.
+     *
+     *     The address arrives in the body, never in the query string. An
+     *     address is the private half of an entry — what somebody reads —
+     *     and a query string is written into the web server's access log,
+     *     into any proxy in front, and onto Sentry events. A body is not.
+     */
+    post: operations['lookup_entry'];
     delete?: never;
     options?: never;
     head?: never;
@@ -326,6 +328,18 @@ export interface components {
        * @default
        */
       title?: string;
+      /** Url */
+      url: string;
+    };
+    /**
+     * EntryLookupIn
+     * @description The address to look up.
+     *
+     *     In a body rather than a query string: an address is the private
+     *     part of an entry, and a query string is written into every access
+     *     log the request passes through.
+     */
+    EntryLookupIn: {
       /** Url */
       url: string;
     };
@@ -715,16 +729,18 @@ export interface operations {
       };
     };
   };
-  get_entry_by_url: {
+  lookup_entry: {
     parameters: {
-      query: {
-        url: string;
-      };
+      query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['EntryLookupIn'];
+      };
+    };
     responses: {
       /** @description OK */
       200: {

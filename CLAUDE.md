@@ -49,8 +49,11 @@ Design spec: `docs/superpowers/specs/2026-09-16-hrcek-extension-design.md`.
   REPLACES the entry — omitted attributes are cleared — EXCEPT
   `fields`, which is PATCHED (send `""` to clear one field; omitting
   `fields` changes none of them).
-- Always look before writing: `GET /api/entries/by-url/` (404 +
-  `HRC-CORE-0003` means not held). The popup does this on open.
+- Always look before writing: `POST /api/entries/lookup` with the address
+  in the body (404 + `HRC-CORE-0003` means not held). The popup does this
+  on open. It is a POST for a read on purpose — an address is the private
+  half of an entry, and a query string lands in every access log the
+  request passes through, so it never goes in one.
 - Branch on error `code`, never on `message` — messages are translated
   and may be reworded. Show `message` to people, though.
 - Never hard-code field names. `Price`/`Priority` are only the defaults

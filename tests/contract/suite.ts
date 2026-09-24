@@ -79,8 +79,8 @@ export function runContractSuite(
       expect(await loadExisting(client(), testUrl('never-saved'))).toBeNull();
     });
 
-    it('finds a held address via by-url', async () => {
-      const url = testUrl('by-url');
+    it('finds a held address via the lookup', async () => {
+      const url = testUrl('lookup');
       await client().saveEntry({ url });
       expect((await loadExisting(client(), url))?.url).toBe(url);
     });
