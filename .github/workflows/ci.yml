@@ -8,6 +8,10 @@ on:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    # A browser that hangs on launch takes the whole job with it, and the
+    # default ceiling is six hours. The suite runs in under two minutes;
+    # fifteen is generous and fails fast when it is not.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
