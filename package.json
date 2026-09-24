@@ -11,6 +11,7 @@
     "build:chrome": "wxt build -b chrome",
     "build:e2e": "wxt build -b chrome --mode e2e",
     "zip": "wxt zip -b firefox",
+    "zip:chrome": "wxt zip -b chrome",
     "typecheck": "wxt prepare && tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",

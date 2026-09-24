@@ -1,7 +1,10 @@
 # Hrček extension
 
 Browser extension for saving links to a [Hrček](../hrcek) server.
-Firefox first; Chrome and Safari build from the same codebase.
+Firefox first; Chrome is a verified build target too, and Safari
+builds from the same codebase. The popup and options page follow the
+browser's language automatically; a language can also be chosen by
+hand in settings.
 
 ## Develop
 
@@ -13,8 +16,11 @@ pnpm dev          # runs in real Firefox with auto-reload
 pnpm test         # unit + contract tests
 pnpm test:e2e     # Playwright e2e (Chromium + in-repo fake server)
 pnpm build        # production Firefox build
+pnpm build:chrome # production Chrome build
 pnpm zip          # AMO-ready zip
+pnpm zip:chrome   # Chrome Web Store-ready zip
 ```
 
-See `CLAUDE.md` for architecture rules and `docs/superpowers/specs/`
-for the design.
+See `CLAUDE.md` for architecture rules, `docs/superpowers/specs/` for
+the design, and `docs/store/` for the permission justifications and
+privacy statement written for store reviewers.
